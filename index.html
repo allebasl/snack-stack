@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#fff0f3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Snack Stack">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Snack Stack</title>
+<style>
+:root { --u: 30px; --ink: #3b2a2a; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+/* phones: no double-tap zoom, no pull-to-refresh/bounce, no long-press menu, no grey tap flash */
+html { touch-action: manipulation; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-text-size-adjust: 100%; }
+body {
+  font-family: "Trebuchet MS", "Segoe UI Rounded", "Comic Sans MS", system-ui, sans-serif;
+  color: var(--ink); user-select: none; -webkit-user-select: none;
+  background-color: #fff0f3;
+  background-image:
+    linear-gradient(90deg, rgba(255, 140, 170, .22) 50%, transparent 50%),
+    linear-gradient(rgba(255, 140, 170, .22) 50%, transparent 50%);
+  background-size: 64px 64px;
+}
+#app { position: relative; height: 100%; height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.short { display: none; }
+.topbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; width: calc(var(--u) * 18); min-width: 300px; height: 52px; font-weight: bold; font-size: 17px; }
+.pill { background: #fff8e7; border: 3px solid var(--ink); border-radius: 999px; padding: 3px 14px; box-shadow: 0 3px 0 var(--ink); white-space: nowrap; }
+.mute { cursor: pointer; font: inherit; color: inherit; }
+.stage { position: relative; width: calc(var(--u) * 18); height: calc(var(--u) * 24.6); touch-action: manipulation; }
+.tile { position: absolute; width: calc(var(--u) * 2); height: calc(var(--u) * 2); cursor: pointer;
+  transition: left .18s ease, top .18s ease, transform .2s ease, opacity .2s ease; }
+.tile .face { position: absolute; inset: 0; padding: 7%; background: #fff8e7;
+  border: max(2px, calc(var(--u) * .09)) solid var(--ink); border-radius: 22%;
+  box-shadow: 0 calc(var(--u) * .16) 0 #e0bd85, 0 calc(var(--u) * .16 + 2px) 0 var(--ink);
+  transition: filter .15s, transform .1s; }
+.tile.onboard .face { box-shadow: none; }
+.tbase { position: absolute; width: calc(var(--u) * 2); height: calc(var(--u) * 2); border-radius: 22%; background: var(--ink); z-index: 5; pointer-events: none; transition: opacity .2s ease; }
+.tbase.enter { opacity: 0; }
+.tile svg { width: 100%; height: 100%; display: block; pointer-events: none; }
+.tile.covered { cursor: default; }
+.tile.covered .face { filter: brightness(.55) saturate(.75); }
+@media (hover: hover) { .tile.free:hover .face { transform: translateY(-2px); } }
+.tile.inbar { cursor: default; }
+.tile.flying { z-index: 5000 !important; }
+.tile.pop { transform: scale(1.3); opacity: 0; transition: transform .2s ease-in, opacity .2s ease-in; }
+.tile.enter { opacity: 0; transform: scale(.6); }
+.tile.wiggle .face { animation: wiggle .35s ease; }
+.tile.nope .face { animation: nope .25s ease; }
+@keyframes wiggle { 30% { transform: rotate(-10deg); } 60% { transform: rotate(8deg); } }
+@keyframes nope { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+.tray { position: absolute; left: 0; top: calc(var(--u) * 21.2); width: calc(var(--u) * 18); height: calc(var(--u) * 2.95);
+  background: #c98b52; border: 4px solid var(--ink); border-radius: 16px; box-shadow: inset 0 0 0 4px #e6a96b, 0 5px 0 var(--ink); }
+.tray.bad { background: #ff6b6b; box-shadow: inset 0 0 0 4px #ff9b9b, 0 5px 0 var(--ink); }
+.tray.shake { animation: shake .5s ease; }
+@keyframes shake { 20% { transform: translateX(-10px); } 40% { transform: translateX(9px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(4px); } }
+.slot { position: absolute; top: calc(var(--u) * .35); width: calc(var(--u) * 2.15); height: calc(var(--u) * 2.15); border-radius: 12px; background: rgba(255, 255, 255, .22); }
+.btns { display: flex; gap: 14px; margin-top: 10px; }
+.btn { font: inherit; font-weight: bold; font-size: 16px; color: var(--ink); background: #7fc8f8; border: 3px solid var(--ink);
+  border-radius: 14px; padding: 8px 16px; box-shadow: 0 4px 0 var(--ink); cursor: pointer; }
+.btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.btn:disabled { background: #d8d0cc; opacity: .65; cursor: default; }
+.btn .count { display: inline-block; margin-left: 6px; background: #fff8e7; border: 2px solid var(--ink); border-radius: 999px; padding: 0 7px; font-size: 13px; }
+.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(255, 240, 243, .78); z-index: 9000; }
+.card { background: #fff8e7; border: 4px solid var(--ink); border-radius: 26px; padding: 26px 34px; text-align: center; box-shadow: 0 8px 0 var(--ink); max-width: min(520px, 92vw); }
+.card h1 { font-size: 46px; margin: 0 0 6px; letter-spacing: 1px; }
+.card p { font-size: 17px; margin: 10px 0; line-height: 1.4; }
+.card .best { opacity: .75; font-size: 15px; }
+.card .row { display: flex; justify-content: center; gap: 6px; margin: 8px 0 4px; }
+.card .row svg { width: 54px; height: 54px; }
+.btn.big { font-size: 22px; padding: 12px 34px; background: #ffd34d; margin-top: 6px; }
+.banner { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%) scale(.6); z-index: 8000; font-size: 48px; font-weight: bold;
+  background: #ffd34d; border: 4px solid var(--ink); border-radius: 22px; padding: 10px 30px; box-shadow: 0 6px 0 var(--ink);
+  opacity: 0; transition: transform .25s ease, opacity .25s ease; pointer-events: none; white-space: nowrap; }
+.banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.sparkle { position: absolute; width: 10px; height: 10px; border-radius: 50%; pointer-events: none; z-index: 6000; animation: spark .5s ease-out forwards; }
+@keyframes spark { to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
+.debugbadge { position: fixed; right: 8px; bottom: 8px; background: #fff; border: 2px solid var(--ink); border-radius: 8px; padding: 4px 8px; font: 12px monospace; z-index: 9999; }
+.gallery { position: fixed; inset: 0; background: #fff0f3; display: flex; flex-wrap: wrap; gap: 16px; padding: 20px; z-index: 9998; align-content: flex-start; }
+.gallery .tile { position: relative; width: 110px; height: 110px; }
+.gallery .lbl { text-align: center; font-weight: bold; margin-top: 10px; }
+.btn { white-space: nowrap; }
+/* phones / narrow windows (kept last so it overrides the rules above) */
+@media (max-width: 520px) {
+  .topbar { height: 40px; gap: 4px; font-size: 13px; }
+  .pill { padding: 2px 9px; border-width: 2px; box-shadow: 0 2px 0 var(--ink); }
+  .long { display: none; } .short { display: inline; }
+  .btns { gap: 6px; }
+  .btn { font-size: 14px; padding: 6px 8px; border-width: 2px; }
+  .btn .count { margin-left: 4px; padding: 0 5px; }
+  .card { padding: 20px 18px; } .card h1 { font-size: 36px; } .card .row svg { width: 40px; height: 40px; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+const DEBUG = /[?&]debug\b/.test(location.search);
+
+/* ===================== rules ===================== */
+// Tile: {id, type, x, y, layer, stack:null|'L'|'R', stackIndex}. x,y in half-tile units; a tile is 2x2 units.
+const rules = {
+  overlaps(a, b) { return Math.abs(a.x - b.x) < 2 && Math.abs(a.y - b.y) < 2; },
+  isFree(tile, board) {
+    if (tile.stack) return !board.some(t => t.stack === tile.stack && t.stackIndex > tile.stackIndex);
+    return !board.some(t => !t.stack && t.layer > tile.layer && rules.overlaps(t, tile));
+  },
+  insertIntoBar(bar, tile) {
+    let at = -1;
+    bar.forEach((t, i) => { if (t.type === tile.type) at = i; });
+    const out = bar.slice();
+    if (at === -1) out.push(tile); else out.splice(at + 1, 0, tile);
+    return out;
+  },
+  resolveMatches(bar) {
+    const count = {};
+    for (const t of bar) count[t.type] = (count[t.type] || 0) + 1;
+    const hit = bar.find(t => count[t.type] >= 3);
+    if (!hit) return { bar, removed: [] };
+    const removed = bar.filter(t => t.type === hit.type).slice(0, 3);
+    return { bar: bar.filter(t => !removed.includes(t)), removed };
+  },
+  isLost(bar) { return bar.length >= 7; },
+};
+
+/* ===================== generator ===================== */
+const generator = (() => {
+  const BOARD_W = 18, BOARD_H = 14; // units (9 x 7 tiles)
+  const MAX_LAYER = 10;
+  const LEVELS = {
+    1: { types: [0, 10, 4], total: 18, base: 15, offsetShare: 0, stackSize: 0 },
+    2: { types: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], total: 201, offsetShare: 0.2, stackSize: 15 },
+  };
+  const DEBUG_LEVEL2 = { types: [2, 3, 5, 0], total: 12, offsetShare: 0, stackSize: 0 };
+  // Footprints: 9 x 7 whole-tile cells, 'X' = tiles allowed. Empty cells stay empty (gaps).
+  const SHAPES1 = [
+    ['.........', '.........', '..XXXXX..', '..XXXXX..', '..XXXXX..', '.........', '.........'],
+    ['.........', '.........', '.XXX.XXX.', '..XX.XX..', '.XXX.XXX.', '.........', '.........'],
+  ];
+  const SHAPES2 = [
+    ['XXXX.XXXX', 'XXX...XXX', 'XXXXXXXXX', 'XXXXXXXXX', 'XXX...XXX', 'XXXX.XXXX', 'XX.....XX'], // towers + bridge
+    ['XXX...XXX', 'XXXX.XXXX', '.XXXXXXX.', '..XXXXX..', '.XXXXXXX.', 'XXXX.XXXX', 'XXX...XXX'], // X
+    ['XXXXXXXXX', 'XXX...XXX', 'XX.XXX.XX', 'XX.XXX.XX', 'XX.XXX.XX', 'XXX...XXX', 'XXXXXXXXX'], // ring
+    ['XXXX.XXXX', 'XXXX.XXXX', 'XXX...XXX', '..XXXXX..', 'XXX...XXX', 'XXXX.XXXX', 'XXXX.XXXX'], // four blocks
+    ['XX.XXX.XX', 'XXXXXXXXX', 'XX.XXX.XX', 'XX.XXX.XX', 'XX.XXX.XX', 'XXXXXXXXX', 'XX.XXX.XX'], // pillars
+  ];
+  const DEBUG_SHAPE = ['.........', '.........', '..XX.XX..', '..XX.XX..', '.........', '.........', '.........'];
+
+  function shuffle(arr, rng) {
+    for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+    return arr;
+  }
+  // Pool of type indices 0..numTypes-1, each a multiple of 3, spread evenly.
+  function typePool(total, numTypes, rng) {
+    const pool = [];
+    const order = shuffle([...Array(numTypes).keys()], rng);
+    for (let k = 0; k < total / 3; k++) { const ty = order[k % numTypes]; pool.push(ty, ty, ty); }
+    return shuffle(pool, rng);
+  }
+  const parse = rows => {
+    const cells = [];
+    rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch === 'X') cells.push({ x: i * 2, y: j * 2 }); }));
+    return cells;
+  };
+  const pickOne = (arr, rng) => arr[Math.floor(rng() * arr.length)];
+  // Remove `pairs` random mirrored pairs of cells so no two runs look identical.
+  function knockOut(cells, pairs, rng) {
+    let out = cells;
+    for (let k = 0; k < pairs; k++) {
+      const left = out.filter(c => c.x < (BOARD_W - 2) / 2);
+      if (!left.length) break;
+      const c = pickOne(left, rng);
+      out = out.filter(d => !(d.y === c.y && (d.x === c.x || d.x === BOARD_W - 2 - c.x)));
+    }
+    return out;
+  }
+  // Build a pile: one tile on every footprint cell, then pile the rest on top. Most extra tiles stack
+  // exactly on a cell (hiding the tile below); `offsetShare` of them sit half a tile over 4 cells.
+  // A new tile's layer is 1 + the highest tile it overlaps, so same-layer tiles never overlap.
+  function buildPile(cells, total, offsetShare, rng) {
+    const tiles = cells.map(c => ({ x: c.x, y: c.y, layer: 0 }));
+    const inMask = new Set(cells.map(c => c.x + ',' + c.y));
+    const offsets = [];
+    for (let y = 1; y + 2 <= BOARD_H; y += 2) for (let x = 1; x + 2 <= BOARD_W; x += 2) {
+      if ([[-1, -1], [1, -1], [-1, 1], [1, 1]].every(([dx, dy]) => inMask.has((x + dx) + ',' + (y + dy)))) offsets.push({ x, y });
+    }
+    const weights = cells.map(() => 0.3 + rng() * 1.7);
+    const wsum = weights.reduce((a, b) => a + b, 0);
+    const pickCell = () => { let r = rng() * wsum; for (let i = 0; i < cells.length; i++) { r -= weights[i]; if (r <= 0) return cells[i]; } return cells[cells.length - 1]; };
+    for (let guard = 0; tiles.length < total && guard < 50000; guard++) {
+      const p = offsets.length && rng() < offsetShare ? pickOne(offsets, rng) : pickCell();
+      let layer = 0;
+      for (const t of tiles) if (rules.overlaps(t, p) && t.layer + 1 > layer) layer = t.layer + 1;
+      if (layer > MAX_LAYER) continue;
+      tiles.push({ x: p.x, y: p.y, layer });
+    }
+    if (tiles.length !== total) throw new Error('pile does not fit: ' + tiles.length + '/' + total);
+    return tiles;
+  }
+  function makeLevel(levelNum, rng = Math.random, debug = false) {
+    const cfg = levelNum === 2 && debug ? DEBUG_LEVEL2 : LEVELS[levelNum];
+    let pile = null;
+    for (let attempt = 0; !pile; attempt++) {
+      let cells;
+      if (levelNum === 1) cells = shuffle(parse(pickOne(SHAPES1, rng)), rng).slice(0, cfg.base);
+      else if (debug) cells = parse(DEBUG_SHAPE);
+      else cells = knockOut(parse(pickOne(SHAPES2, rng)), attempt < 5 ? Math.floor(rng() * 3) : 0, rng);
+      try { pile = buildPile(cells, cfg.total, attempt < 10 ? cfg.offsetShare : 0, rng); }
+      catch (e) { if (attempt >= 20) throw e; }
+    }
+    const tiles = pile.map(t => ({ ...t, stack: null, stackIndex: 0 }));
+    for (const side of ['L', 'R']) for (let i = 0; i < cfg.stackSize; i++) {
+      tiles.push({ x: 0, y: 0, layer: 0, stack: side, stackIndex: i });
+    }
+    const pool = typePool(tiles.length, cfg.types.length, rng);
+    tiles.forEach((t, i) => { t.id = levelNum * 1000 + i + 1; t.type = cfg.types[pool[i]]; });
+    if (levelNum === 2 && !debug) seedStarterGroups(tiles, 3, rng);
+    return tiles;
+  }
+  // Make `n` groups of 3 nearby free tiles share a type, so Level 2 opens with a few easy matches.
+  // Only swaps types between tiles, so every type count stays a multiple of 3.
+  function seedStarterGroups(tiles, n, rng) {
+    const free = tiles.filter(t => !t.stack && rules.isFree(t, tiles));
+    const dist = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+    const locked = new Set(), usedTypes = new Set();
+    for (let g = 0; g < n; g++) {
+      const avail = shuffle(free.filter(t => !locked.has(t)), rng);
+      let group = null;
+      for (const s of avail) {
+        const [a, b] = avail.filter(t => t !== s).sort((p, q) => dist(s, p) - dist(s, q));
+        if (a && b && dist(s, a) <= 6 && dist(s, b) <= 6 && dist(a, b) <= 6) { group = [s, a, b]; break; }
+      }
+      if (!group) break;
+      const ty = (group.map(t => t.type).find(x => !usedTypes.has(x)) ?? [...new Set(tiles.map(t => t.type))].find(x => !usedTypes.has(x)));
+      for (const m of group) {
+        if (m.type === ty) continue;
+        const donor = tiles.find(d => d.type === ty && !group.includes(d) && !locked.has(d));
+        [donor.type, m.type] = [m.type, donor.type];
+      }
+      group.forEach(t => locked.add(t));
+      usedTypes.add(ty);
+    }
+  }
+  return { BOARD_W, BOARD_H, MAX_LAYER, LEVELS, typePool, makeLevel, shuffle };
+})();
+
+/* ===================== art ===================== */
+const art = (() => {
+  const INK = '#3b2a2a';
+  const O = `stroke="${INK}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"`;
+  const wrap = body => `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+  const face = (cx, cy, s = 1) => `
+    <ellipse cx="${cx - 12 * s}" cy="${cy + 5 * s}" rx="${4.5 * s}" ry="${2.6 * s}" fill="#ff7f9c" opacity=".55"/>
+    <ellipse cx="${cx + 12 * s}" cy="${cy + 5 * s}" rx="${4.5 * s}" ry="${2.6 * s}" fill="#ff7f9c" opacity=".55"/>
+    <circle cx="${cx - 7 * s}" cy="${cy}" r="${3.4 * s}" fill="${INK}"/><circle cx="${cx + 7 * s}" cy="${cy}" r="${3.4 * s}" fill="${INK}"/>
+    <circle cx="${cx - 6 * s}" cy="${cy - 1.2 * s}" r="${1.1 * s}" fill="#fff"/><circle cx="${cx + 8 * s}" cy="${cy - 1.2 * s}" r="${1.1 * s}" fill="#fff"/>
+    <path d="M${cx - 4 * s} ${cy + 5 * s} Q${cx} ${cy + 9 * s} ${cx + 4 * s} ${cy + 5 * s}" fill="none" stroke="${INK}" stroke-width="${2.6 * s}" stroke-linecap="round"/>`;
+  const snack = (name, body) => ({ name, svg: () => wrap(body) });
+
+  const SNACKS = [
+    snack('donut', `
+      <circle cx="50" cy="52" r="34" fill="#e3a95c" ${O}/>
+      <path d="M22 50 Q20 26 50 22 Q80 26 78 50 Q76 60 70 56 Q66 66 60 60 Q54 68 48 62 Q42 68 38 60 Q30 64 28 56 Q22 60 22 50 Z" fill="#8a4b2a" ${O}/>
+      <circle cx="50" cy="40" r="8" fill="#fff8e7" ${O}/>
+      <rect x="30" y="34" width="8" height="3" rx="1.5" fill="#ff8fc0" transform="rotate(-30 34 35)"/>
+      <rect x="62" y="30" width="8" height="3" rx="1.5" fill="#7fd6ff" transform="rotate(25 66 31)"/>
+      <rect x="66" y="44" width="8" height="3" rx="1.5" fill="#ffe27a" transform="rotate(-10 70 45)"/>
+      <rect x="32" y="46" width="8" height="3" rx="1.5" fill="#9fe6c8" transform="rotate(40 36 47)"/>
+      ${face(50, 74, 0.75)}`),
+    snack('cupcake', `
+      <path d="M26 56 L74 56 L66 90 L34 90 Z" fill="#7fc8f8" ${O}/>
+      <path d="M40 58 L42 88 M50 58 L50 88 M60 58 L58 88" stroke="#4f9fd6" stroke-width="3" fill="none"/>
+      <path d="M22 58 Q16 44 30 42 Q30 26 50 26 Q70 26 70 42 Q84 44 78 58 Z" fill="#ffb3d1" ${O}/>
+      <circle cx="50" cy="20" r="7" fill="#ff4f64" ${O}/>
+      ${face(50, 46, 0.8)}`),
+    snack('strawberry', `
+      <path d="M50 90 C22 78 16 52 24 40 C32 28 68 28 76 40 C84 52 78 78 50 90 Z" fill="#ff4f64" ${O}/>
+      <g fill="#ffe08a"><ellipse cx="34" cy="48" rx="2" ry="3"/><ellipse cx="66" cy="48" rx="2" ry="3"/><ellipse cx="38" cy="72" rx="2" ry="3"/><ellipse cx="62" cy="72" rx="2" ry="3"/><ellipse cx="50" cy="80" rx="2" ry="3"/></g>
+      <path d="M50 36 L38 24 L44 34 L28 32 L42 40 L50 30 L58 40 L72 32 L56 34 L62 24 Z" fill="#58c25a" ${O}/>
+      ${face(50, 58, 0.9)}`),
+    snack('cherry', `
+      <path d="M34 54 Q38 30 56 16 M66 56 Q62 32 56 16" stroke="#3f8f3f" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <ellipse cx="66" cy="20" rx="11" ry="5" fill="#58c25a" transform="rotate(-20 66 20)" ${O}/>
+      <circle cx="33" cy="68" r="17" fill="#e8384f" ${O}/>
+      <circle cx="67" cy="70" r="17" fill="#e8384f" ${O}/>
+      <circle cx="26" cy="62" r="3" fill="#fff" opacity=".7"/><circle cx="60" cy="64" r="3" fill="#fff" opacity=".7"/>
+      ${face(33, 70, 0.6)}${face(67, 72, 0.6)}`),
+    snack('ice cream', `
+      <path d="M30 52 L70 52 L50 94 Z" fill="#efbf72" ${O}/>
+      <path d="M38 58 L56 80 M50 54 L62 68 M62 56 L44 80 M48 56 L38 64" stroke="#c48a3e" stroke-width="2.5" fill="none"/>
+      <path d="M26 50 Q24 18 50 18 Q76 18 74 50 Q70 60 64 52 Q58 62 52 54 Q46 62 40 54 Q34 60 26 50 Z" fill="#9fe6c8" ${O}/>
+      ${face(50, 38, 0.85)}`),
+    snack('cookie', `
+      <path d="M50 16 Q66 15 76 26 Q88 36 84 52 Q86 70 72 80 Q60 88 46 85 Q28 86 20 72 Q12 58 17 44 Q20 26 36 19 Q43 15 50 16 Z" fill="#d39b55" ${O}/>
+      <g fill="#6b3e26"><circle cx="34" cy="34" r="4.5"/><circle cx="66" cy="30" r="4"/><circle cx="72" cy="58" r="4.5"/><circle cx="30" cy="66" r="4"/><circle cx="56" cy="76" r="3.5"/><circle cx="48" cy="28" r="3"/></g>
+      ${face(50, 52, 0.9)}`),
+    snack('croissant', `
+      <ellipse cx="20" cy="64" rx="9" ry="13" transform="rotate(-50 20 64)" fill="#f2b45a" ${O}/>
+      <ellipse cx="80" cy="64" rx="9" ry="13" transform="rotate(50 80 64)" fill="#f2b45a" ${O}/>
+      <ellipse cx="32" cy="52" rx="11" ry="17" transform="rotate(-30 32 52)" fill="#f2b45a" ${O}/>
+      <ellipse cx="68" cy="52" rx="11" ry="17" transform="rotate(30 68 52)" fill="#f2b45a" ${O}/>
+      <ellipse cx="50" cy="48" rx="15" ry="21" fill="#f6c46e" ${O}/>
+      ${face(50, 48, 0.75)}`),
+    snack('lollipop', `
+      <rect x="46" y="58" width="8" height="38" rx="3" fill="#fff" ${O}/>
+      <circle cx="50" cy="38" r="28" fill="#fff" ${O}/>
+      ${['#ff5fa2', '#ffd34d', '#7fd6ff', '#ff5fa2', '#9fe6c8', '#ffd34d'].map((c, k) =>
+        `<path d="M50 38 Q68 28 73 50" fill="none" stroke="${c}" stroke-width="7" stroke-linecap="round" transform="rotate(${k * 60} 50 38)"/>`).join('')}
+      <circle cx="50" cy="38" r="28" fill="none" ${O}/>
+      <circle cx="50" cy="39" r="12" fill="#fff"/>
+      <circle cx="33" cy="24" r="3.5" fill="#fff" opacity=".9"/>
+      ${face(50, 38, 0.7)}`),
+    snack('candy', `
+      <path d="M32 50 L10 30 Q4 50 10 70 Z" fill="#ffd34d" ${O}/>
+      <path d="M68 50 L90 30 Q96 50 90 70 Z" fill="#ffd34d" ${O}/>
+      <rect x="26" y="30" width="48" height="40" rx="20" fill="#7fd6ff" ${O}/>
+      <path d="M36 36 Q32 42 34 48" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" opacity=".8"/>
+      ${face(52, 48, 0.85)}`),
+    snack('pudding', `
+      <ellipse cx="50" cy="84" rx="40" ry="9" fill="#fff" ${O}/>
+      <path d="M26 82 L34 40 Q50 32 66 40 L74 82 Q50 90 26 82 Z" fill="#ffd65c" ${O}/>
+      <path d="M34 40 Q50 32 66 40 L65 50 Q60 57 56 51 Q52 59 47 51 Q42 57 38 51 L35 49 Z" fill="#9a5426" ${O}/>
+      <circle cx="50" cy="30" r="6" fill="#ff4f64" ${O}/>
+      ${face(50, 66, 0.9)}`),
+    snack('watermelon', `
+      <path d="M10 36 L90 36 A40 40 0 0 1 10 36 Z" fill="#4caf50" ${O}/>
+      <path d="M18 36 L82 36 A32 32 0 0 1 18 36 Z" fill="#ff5c6c"/>
+      <path d="M10 36 L90 36" ${O}/>
+      <g fill="${INK}"><ellipse cx="28" cy="44" rx="2" ry="3.2"/><ellipse cx="72" cy="44" rx="2" ry="3.2"/><ellipse cx="38" cy="60" rx="2" ry="3.2"/><ellipse cx="62" cy="60" rx="2" ry="3.2"/></g>
+      ${face(50, 46, 0.75)}`),
+    snack('cake', `
+      <path d="M12 58 L88 46 L88 80 L12 88 Z" fill="#ffe7a8" ${O}/>
+      <path d="M12 72 L88 62" stroke="#ff9fc8" stroke-width="6"/>
+      <path d="M12 58 L88 46 L88 80 L12 88 Z" fill="none" ${O}/>
+      <path d="M12 58 L62 30 L88 46 Z" fill="#ff9fc8" ${O}/>
+      <path d="M22 57 Q25 63 28 56 Q32 62 36 54 M60 50 Q63 56 66 49 Q70 55 74 47" fill="none" stroke="#ff9fc8" stroke-width="4" stroke-linecap="round"/>
+      <path d="M64 42 C56 34 56 24 64 24 C72 24 72 34 64 42 Z" fill="#ff4f64" ${O}/>
+      <path d="M58 24 L64 18 L70 24" fill="none" stroke="#3f8f3f" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${face(52, 76, 0.6)}`),
+    snack('macaron', `
+      <path d="M16 46 Q16 20 50 20 Q84 20 84 46 Z" fill="#ffe27a" ${O}/>
+      <rect x="18" y="46" width="64" height="11" rx="5" fill="#fff7e6" ${O}/>
+      <path d="M16 57 L84 57 Q84 82 50 82 Q16 82 16 57 Z" fill="#ffe27a" ${O}/>
+      ${face(50, 34, 0.8)}`),
+    snack('pretzel', `
+      <path d="M50 82 C16 82 10 44 30 32 C46 22 60 42 50 60 C40 42 54 22 70 32 C90 44 84 82 50 82 Z" fill="none" stroke="${INK}" stroke-width="18" stroke-linejoin="round"/>
+      <path d="M50 82 C16 82 10 44 30 32 C46 22 60 42 50 60 C40 42 54 22 70 32 C90 44 84 82 50 82 Z" fill="none" stroke="#c9793a" stroke-width="10" stroke-linejoin="round"/>
+      <g fill="#fff"><rect x="24" y="44" width="3" height="3"/><rect x="72" y="46" width="3" height="3"/><rect x="40" y="76" width="3" height="3"/><rect x="60" y="76" width="3" height="3"/><rect x="36" y="30" width="3" height="3"/></g>
+      ${face(50, 70, 0.6)}`),
+  ];
+  return { SNACKS, LEVEL1_TYPES: [0, 10, 4] };
+})();
+
+/* ===================== game ===================== */
+// Best result: {won:true, ms} or {level, left}. Better = won faster > higher level > fewer tiles left.
+function isBetterResult(a, b) {
+  if (!b) return true;
+  if (a.won !== b.won) return !!a.won;
+  if (a.won) return a.ms < b.ms;
+  if (a.level !== b.level) return a.level > b.level;
+  return a.left < b.left;
+}
+
+function createGame(opts = {}) {
+  const rng = opts.rng || Math.random;
+  const now = opts.now || (() => Date.now());
+  let storage = opts.storage;
+  if (!storage) { try { storage = window.localStorage; } catch (e) { storage = null; } }
+  const levelFactory = opts.levelFactory || (lvl => generator.makeLevel(lvl, rng, !!opts.debug));
+  const listeners = [];
+  const state = {
+    screen: 'title', level: 1, board: [], bar: [], hold: [],
+    used: { pop: false, undo: false, shuffle: false }, lastMove: null, startTime: 0, endTime: 0,
+  };
+  const emit = () => listeners.forEach(cb => cb(state));
+
+  function loadBest() { try { return JSON.parse(storage.getItem('snackstack.best')); } catch (e) { return null; } }
+  function saveBest(result) {
+    if (isBetterResult(result, loadBest())) { try { storage.setItem('snackstack.best', JSON.stringify(result)); } catch (e) {} }
+  }
+  const tilesLeft = () => state.board.length + state.bar.length + state.hold.length;
+
+  function start() {
+    Object.assign(state, {
+      screen: 'play', level: 1, board: levelFactory(1), bar: [], hold: [],
+      used: { pop: false, undo: false, shuffle: false }, lastMove: null, startTime: now(), endTime: 0,
+    });
+    emit();
+  }
+
+  function place(tile, from) {
+    const barBefore = rules.insertIntoBar(state.bar, tile);
+    const { bar, removed } = rules.resolveMatches(barBefore);
+    state.bar = bar;
+    state.lastMove = { tile, from, matched: removed.length > 0 };
+    const result = { ok: true, tile, barBefore, removed, matched: removed.length > 0, lost: false, levelCleared: false, won: false };
+    if (rules.isLost(state.bar)) {
+      result.lost = true;
+      state.screen = 'lost';
+      saveBest({ level: state.level, left: tilesLeft() });
+    } else if (tilesLeft() === 0) {
+      result.levelCleared = true;
+      if (state.level === 1) {
+        state.level = 2; state.board = levelFactory(2); state.bar = []; state.hold = []; state.lastMove = null;
+      } else {
+        result.won = true;
+        state.screen = 'won'; state.endTime = now();
+        saveBest({ won: true, ms: state.endTime - state.startTime });
+      }
+    }
+    emit();
+    return result;
+  }
+
+  function click(tileId) {
+    if (state.screen !== 'play') return { ok: false };
+    const tile = state.board.find(t => t.id === tileId);
+    if (!tile || !rules.isFree(tile, state.board)) return { ok: false };
+    state.board = state.board.filter(t => t !== tile);
+    return place(tile, 'board');
+  }
+  function clickHold(tileId) {
+    if (state.screen !== 'play') return { ok: false };
+    const tile = state.hold.find(t => t.id === tileId);
+    if (!tile) return { ok: false };
+    state.hold = state.hold.filter(t => t !== tile);
+    return place(tile, 'hold');
+  }
+  function popOut() {
+    if (state.screen !== 'play' || state.used.pop || state.bar.length === 0) return false;
+    const n = Math.min(3, state.bar.length);
+    state.hold = state.hold.concat(state.bar.slice(0, n));
+    state.bar = state.bar.slice(n);
+    state.used.pop = true; state.lastMove = null;
+    emit(); return true;
+  }
+  const canUndo = () => state.screen === 'play' && !state.used.undo && !!state.lastMove && !state.lastMove.matched;
+  function undo() {
+    if (!canUndo()) return false;
+    const { tile, from } = state.lastMove;
+    state.bar = state.bar.filter(t => t !== tile);
+    if (from === 'hold') state.hold = state.hold.concat([tile]); else state.board = state.board.concat([tile]);
+    state.used.undo = true; state.lastMove = null;
+    emit(); return true;
+  }
+  function shuffle() {
+    if (state.screen !== 'play' || state.used.shuffle || state.board.length < 2) return false;
+    const types = generator.shuffle(state.board.map(t => t.type), rng);
+    state.board.forEach((t, i) => { t.type = types[i]; });
+    state.used.shuffle = true;
+    emit(); return true;
+  }
+  return {
+    state, start, click, clickHold, popOut, undo, canUndo, shuffle, tilesLeft, loadBest,
+    onChange(cb) { listeners.push(cb); },
+    toTitle() { state.screen = 'title'; emit(); },
+    // Testing shortcut: jump straight from Level 1 to a fresh Level 2 (helpers keep their used state).
+    skipLevel() {
+      if (state.screen !== 'play' || state.level !== 1) return false;
+      Object.assign(state, { level: 2, board: levelFactory(2), bar: [], hold: [], lastMove: null });
+      emit(); return true;
+    },
+  };
+}
+
+/* ===================== selftest ===================== */
+const selftest = (() => {
+  const tests = [];
+  const test = (name, fn) => tests.push({ name, fn });
+  const eq = (a, b, msg) => {
+    const ja = JSON.stringify(a), jb = JSON.stringify(b);
+    if (ja !== jb) throw new Error((msg ? msg + ': ' : '') + 'expected ' + jb + ' got ' + ja);
+  };
+  const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
+  const run = () => {
+    let passed = 0; const failures = [];
+    for (const t of tests) {
+      try { t.fn(); passed++; } catch (e) { failures.push(t.name + ' -> ' + e.message); }
+    }
+    window.__selftest = { passed, failed: failures.length, failures };
+    console.log('[selftest] ' + passed + '/' + tests.length + ' passed');
+    failures.forEach(f => console.error('[selftest] FAIL ' + f));
+    return window.__selftest;
+  };
+  return { test, eq, ok, run };
+})();
+
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+(() => {
+  const { test, eq, ok } = selftest;
+  const T = (id, type, x, y, layer, stack = null, stackIndex = 0) => ({ id, type, x, y, layer, stack, stackIndex });
+  const types = bar => bar.map(t => t.type);
+
+  // ---- Task 1: rules ----
+  test('isFree: tile with higher overlapping tile is not free', () => {
+    const A = T(1, 0, 0, 0, 0), B = T(2, 0, 1, 1, 1);
+    eq(rules.isFree(A, [A, B]), false); eq(rules.isFree(B, [A, B]), true);
+  });
+  test('isFree: non-overlapping higher tile does not cover', () => {
+    const A = T(1, 0, 0, 0, 0), B = T(2, 0, 2, 0, 1);
+    eq(rules.isFree(A, [A, B]), true);
+  });
+  test('isFree: side stack only top is free', () => {
+    const s = [0, 1, 2].map(i => T(10 + i, 0, 0, 0, 0, 'L', i));
+    eq(s.map(t => rules.isFree(t, s)), [false, false, true]);
+  });
+  test('isFree: stack tiles and pile tiles do not cover each other', () => {
+    const A = T(1, 0, 0, 0, 0), S = T(2, 0, 0, 0, 5, 'L', 0);
+    eq(rules.isFree(A, [A, S]), true);
+  });
+  test('insertIntoBar groups same type', () => {
+    eq(types(rules.insertIntoBar([T(1, 1, 0, 0, 0), T(2, 2, 0, 0, 0)], T(3, 1, 0, 0, 0))), [1, 1, 2]);
+  });
+  test('insertIntoBar appends new type at end', () => {
+    eq(types(rules.insertIntoBar([T(1, 1, 0, 0, 0)], T(3, 5, 0, 0, 0))), [1, 5]);
+  });
+  test('resolveMatches removes triple', () => {
+    const r = rules.resolveMatches([1, 1, 1, 2].map((ty, i) => T(i, ty, 0, 0, 0)));
+    eq(types(r.bar), [2]); eq(r.removed.length, 3);
+  });
+  test('noLossWhenSeventhMatches', () => {
+    let bar = [1, 1, 2, 3, 4, 5].map((ty, i) => T(i, ty, 0, 0, 0));
+    bar = rules.insertIntoBar(bar, T(99, 1, 0, 0, 0));
+    const r = rules.resolveMatches(bar);
+    eq(r.bar.length, 4); eq(rules.isLost(r.bar), false);
+  });
+  test('isLost at 7', () => {
+    eq(rules.isLost([0, 1, 2, 3, 4, 5, 6].map(ty => T(ty, ty, 0, 0, 0))), true);
+    eq(rules.isLost([0, 1, 2, 3, 4, 5].map(ty => T(ty, ty, 0, 0, 0))), false);
+  });
+
+  // ---- Task 2: generator ----
+  const countTypes = tiles => tiles.reduce((m, t) => (m[t.type] = (m[t.type] || 0) + 1, m), {});
+  test('level1 is easy: 18 tiles, at least 12 free at start', () => {
+    for (let s = 0; s < 20; s++) {
+      const tiles = generator.makeLevel(1, mulberry32(300 + s), false);
+      eq(tiles.length, 18);
+      ok(tiles.filter(t => rules.isFree(t, tiles)).length >= 12, 'seed ' + s);
+    }
+  });
+  test('level2 shapes have some gaps but not too many (8..22 of 63 cells empty)', () => {
+    for (let s = 0; s < 20; s++) {
+      const pile = generator.makeLevel(2, mulberry32(400 + s), false).filter(t => !t.stack);
+      let empty = 0;
+      for (let y = 0; y < 14; y += 2) for (let x = 0; x < 18; x += 2)
+        if (!pile.some(t => rules.overlaps(t, { x, y }))) empty++;
+      ok(empty >= 8 && empty <= 22, 'seed ' + s + ': ' + empty + ' empty cells');
+    }
+  });
+  test('level2 hides many tiles directly under others, max layer capped', () => {
+    for (let s = 0; s < 20; s++) {
+      const pile = generator.makeLevel(2, mulberry32(500 + s), false).filter(t => !t.stack);
+      const hidden = pile.filter(t => pile.some(o => o.x === t.x && o.y === t.y && o.layer > t.layer)).length;
+      ok(hidden >= 60, 'seed ' + s + ' only ' + hidden + ' hidden');
+      ok(pile.every(t => t.layer <= generator.MAX_LAYER), 'layer cap');
+    }
+  });
+  test('level2 starts with >= 3 sets of three matching free tiles', () => {
+    for (let s = 0; s < 50; s++) {
+      const tiles = generator.makeLevel(2, mulberry32(600 + s), false);
+      // a "group" = 3 free pile tiles of one type, all within 6 units of each other
+      const free = tiles.filter(t => !t.stack && rules.isFree(t, tiles));
+      const near = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) <= 6;
+      let groups = 0;
+      for (const ty of new Set(free.map(t => t.type))) {
+        const f = free.filter(t => t.type === ty);
+        let found = false;
+        for (let i = 0; i < f.length && !found; i++) for (let j = i + 1; j < f.length && !found; j++) for (let k = j + 1; k < f.length && !found; k++)
+          if (near(f[i], f[j]) && near(f[i], f[k]) && near(f[j], f[k])) found = true;
+        if (found) groups++;
+      }
+      ok(groups >= 3, 'seed ' + s + ' only ' + groups + ' grouped triples');
+      ok(Object.values(countTypes(tiles)).every(n => n % 3 === 0), 'counts still %3');
+    }
+  });
+  test('level1 has 3 types, each count %3==0', () => {
+    const tiles = generator.makeLevel(1, mulberry32(1), false);
+    const c = countTypes(tiles);
+    eq(Object.keys(c).length, 3);
+    ok(Object.values(c).every(n => n % 3 === 0), 'counts ' + JSON.stringify(c));
+  });
+  test('level2 total = 231 and each type count %3==0, 14 types', () => {
+    const tiles = generator.makeLevel(2, mulberry32(2), false);
+    eq(tiles.length, 231);
+    const c = countTypes(tiles);
+    eq(Object.keys(c).length, 14);
+    ok(Object.values(c).every(n => n % 3 === 0), 'counts ' + JSON.stringify(c));
+    eq(tiles.filter(t => t.stack === 'L').length, 15);
+    eq(tiles.filter(t => t.stack === 'R').length, 15);
+  });
+  test('debug level2 is 12 tiles', () => {
+    eq(generator.makeLevel(2, mulberry32(3), true).length, 12);
+  });
+  test('no two tiles on same layer overlap (20 seeds)', () => {
+    for (let s = 0; s < 20; s++) {
+      const pile = generator.makeLevel(2, mulberry32(100 + s), false).filter(t => !t.stack);
+      for (let i = 0; i < pile.length; i++) for (let j = i + 1; j < pile.length; j++) {
+        if (pile[i].layer === pile[j].layer && rules.overlaps(pile[i], pile[j]))
+          throw new Error('overlap seed ' + s + ' ids ' + pile[i].id + ',' + pile[j].id);
+      }
+    }
+  });
+  test('every tile within board bounds', () => {
+    const pile = generator.makeLevel(2, mulberry32(7), false).filter(t => !t.stack);
+    ok(pile.every(t => t.x >= 0 && t.y >= 0 && t.x + 2 <= generator.BOARD_W && t.y + 2 <= generator.BOARD_H));
+  });
+  test('level 1 has at least one free tile', () => {
+    const tiles = generator.makeLevel(1, mulberry32(9), false);
+    ok(tiles.some(t => rules.isFree(t, tiles)));
+  });
+  test('typePool gives multiples of 3', () => {
+    const p = generator.typePool(231, 14, mulberry32(4));
+    eq(p.length, 231);
+    ok(Object.values(countTypes(p.map(type => ({ type })))).every(n => n % 3 === 0));
+  });
+
+  // ---- Task 3: art ----
+  test('14 snacks each return svg string containing viewBox', () => {
+    eq(art.SNACKS.length, 14);
+    ok(art.SNACKS.every(s => typeof s.name === 'string' && /viewBox/.test(s.svg())));
+    eq(art.LEVEL1_TYPES.length, 3);
+  });
+
+  // ---- Task 4: game ----
+  const fakeStorage = () => { const d = {}; return { getItem: k => (k in d ? d[k] : null), setItem: (k, v) => { d[k] = String(v); }, d }; };
+  const board1 = (base = 0) => [
+    T(base + 1, 0, 0, 0, 0), T(base + 2, 0, 2, 0, 0), T(base + 3, 0, 4, 0, 0),
+    T(base + 4, 1, 6, 0, 0), T(base + 5, 1, 8, 0, 0), T(base + 6, 1, 10, 0, 0),
+    T(base + 7, 2, 0, 4, 0), T(base + 8, 2, 1, 5, 1), T(base + 9, 2, 6, 4, 0),
+  ];
+  const mk = (factory) => {
+    const storage = fakeStorage();
+    const g = createGame({ levelFactory: factory || (lvl => board1(lvl * 100)), storage, rng: mulberry32(5), now: () => 1000 });
+    g.start();
+    return { g, storage };
+  };
+  const id = (lvl, n) => lvl * 100 + n;
+
+  test('click covered tile does nothing', () => {
+    const { g } = mk(); eq(g.click(id(1, 7)).ok, false); eq(g.state.bar.length, 0);
+  });
+  test('click same tile twice inserts once', () => {
+    const { g } = mk(); eq(g.click(id(1, 1)).ok, true); eq(g.click(id(1, 1)).ok, false); eq(g.state.bar.length, 1);
+  });
+  test('three clicks of same type empties bar', () => {
+    const { g } = mk(); g.click(id(1, 1)); g.click(id(1, 2)); const r = g.click(id(1, 3));
+    eq(r.matched, true); eq(r.removed.length, 3); eq(g.state.bar.length, 0);
+    eq(r.barBefore.length, 3);
+  });
+  test('seventh non-matching tile -> screen lost, best saved', () => {
+    const { g, storage } = mk(() => [0, 1, 2, 3, 4, 5, 6, 0, 1].map((ty, i) => T(i + 1, ty, i * 2, 0, 0)));
+    let r; for (let i = 1; i <= 7; i++) r = g.click(i);
+    eq(r.lost, true); eq(g.state.screen, 'lost');
+    ok(storage.getItem('snackstack.best'), 'best saved');
+    eq(g.click(8).ok, false);
+  });
+  test('clearing level 1 moves to level 2 keeping used helpers', () => {
+    const { g } = mk();
+    g.click(id(1, 4)); eq(g.popOut(), true); eq(g.state.hold.length, 1);
+    g.click(id(1, 1)); g.click(id(1, 2)); g.click(id(1, 3));
+    g.clickHold(id(1, 4)); g.click(id(1, 5)); g.click(id(1, 6));
+    g.click(id(1, 8)); g.click(id(1, 7)); const r = g.click(id(1, 9));
+    eq(r.levelCleared, true); eq(g.state.level, 2); eq(g.state.used.pop, true);
+    eq(g.state.board.length, 9);
+  });
+  test('clearing level 2 -> won with time', () => {
+    const { g } = mk(lvl => lvl === 1 ? [T(1, 0, 0, 0, 0), T(2, 0, 2, 0, 0), T(3, 0, 4, 0, 0)] : [T(11, 1, 0, 0, 0), T(12, 1, 2, 0, 0), T(13, 1, 4, 0, 0)]);
+    [1, 2, 3, 11, 12, 13].forEach(n => g.click(n));
+    eq(g.state.screen, 'won'); ok(g.state.endTime >= g.state.startTime);
+  });
+  test('popOut with empty bar does not consume', () => {
+    const { g } = mk(); eq(g.popOut(), false); eq(g.state.used.pop, false);
+  });
+  test('popOut moves up to 3 tiles to hold, then disabled', () => {
+    const { g } = mk();
+    [1, 4, 9, 5].forEach(n => g.click(id(1, n)));
+    eq(types(g.state.bar), [0, 1, 1, 2]);
+    eq(g.popOut(), true); eq(types(g.state.hold), [0, 1, 1]); eq(types(g.state.bar), [2]);
+    eq(g.popOut(), false);
+  });
+  test('undo returns tile to board at same x,y,layer', () => {
+    const { g } = mk(); g.click(id(1, 8)); eq(g.canUndo(), true); eq(g.undo(), true);
+    const t = g.state.board.find(t => t.id === id(1, 8));
+    ok(t); eq([t.x, t.y, t.layer], [1, 5, 1]); eq(g.state.bar.length, 0);
+    eq(g.state.used.undo, true); eq(g.canUndo(), false);
+  });
+  test('undo from hold returns tile to hold', () => {
+    const { g } = mk(); g.click(id(1, 4)); g.popOut(); g.clickHold(id(1, 4)); eq(g.undo(), true);
+    eq(g.state.hold.length, 1); eq(g.state.bar.length, 0);
+  });
+  test('undo disabled after a match', () => {
+    const { g } = mk(); [1, 2, 3].forEach(n => g.click(id(1, n))); eq(g.canUndo(), false); eq(g.undo(), false);
+  });
+  test('shuffle preserves multiset of board types, then disabled', () => {
+    const { g } = mk();
+    const before = g.state.board.map(t => t.type).sort();
+    eq(g.shuffle(), true);
+    eq(g.state.board.map(t => t.type).sort(), before);
+    eq(g.state.used.shuffle, true); eq(g.shuffle(), false);
+  });
+  test('start() resets helpers and level', () => {
+    const { g } = mk(); g.click(id(1, 1)); g.popOut(); g.start();
+    eq(g.state.level, 1); eq(g.state.used, { pop: false, undo: false, shuffle: false }); eq(g.state.hold.length, 0);
+  });
+  test('createGame survives blocked localStorage', () => {
+    Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new Error('SecurityError'); } });
+    try {
+      const g = createGame({ levelFactory: () => board1(100) });
+      g.start(); g.click(101); eq(g.loadBest(), null);
+    } finally { delete window.localStorage; }
+  });
+  test('right-click does not place a tile', () => {
+    const g = ui.game; g.start(); ui.render();
+    const t = g.state.board.find(t => rules.isFree(t, g.state.board));
+    document.querySelector(`.tile[data-id="${t.id}"]`).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 2 }));
+    const placed = g.state.bar.length;
+    g.toTitle(); ui.render();
+    eq(placed, 0);
+  });
+  test('no clickable tile is drawn underneath another tile (20 boards)', () => {
+    const g = ui.game; g.start();
+    try {
+      for (let s = 0; s < 20; s++) {
+        g.state.level = 2; g.state.board = generator.makeLevel(2, mulberry32(800 + s), false); ui.render();
+        const rect = el => ({ x: parseFloat(el.style.left), y: parseFloat(el.style.top), w: el.offsetWidth, h: el.offsetHeight, z: +el.style.zIndex });
+        const tiles = g.state.board.filter(t => !t.stack).map(t => ({ t, r: rect(document.querySelector(`.tile[data-id="${t.id}"]`)) }));
+        for (const a of tiles) {
+          if (!rules.isFree(a.t, g.state.board)) continue;
+          for (const b of tiles) {
+            if (a === b || b.r.z <= a.r.z) continue;
+            const ox = Math.min(a.r.x + a.r.w, b.r.x + b.r.w) - Math.max(a.r.x, b.r.x);
+            const oy = Math.min(a.r.y + a.r.h, b.r.y + b.r.h) - Math.max(a.r.y, b.r.y);
+            if (ox > 1 && oy > 1) throw new Error('seed ' + s + ': free tile ' + a.t.id + ' drawn under ' + b.t.id);
+          }
+        }
+      }
+    } finally { g.toTitle(); ui.render(); }
+  });
+  test('skipLevel jumps from level 1 to a fresh level 2, only from level 1', () => {
+    const { g } = mk(); g.click(id(1, 1)); g.click(id(1, 4)); g.popOut();
+    eq(g.skipLevel(), true);
+    eq(g.state.level, 2); eq(g.state.bar.length, 0); eq(g.state.hold.length, 0);
+    eq(g.state.board.length, 9); eq(g.state.used.pop, true); eq(g.canUndo(), false);
+    eq(g.skipLevel(), false);
+  });
+  test('whole game fits inside the window (no clipping)', () => {
+    const g = ui.game; g.start(); ui.render(); // during Level 1 the top bar is fullest (Skip is shown)
+    try {
+      const W = window.innerWidth, H = window.innerHeight;
+      for (const sel of ['.topbar', '#lvl', '#left', '#skip', '#mute', '.stage', '.btns', '#b-pop', '#b-shuffle']) {
+        const r = document.querySelector(sel).getBoundingClientRect();
+        ok(r.left >= -1 && r.right <= W + 1 && r.top >= -1 && r.bottom <= H + 1, sel + ' out of window ' + JSON.stringify([r.left, r.top, r.right, r.bottom, W, H].map(Math.round)));
+      }
+      const b = document.querySelector('#b-pop');
+      ok(b.getBoundingClientRect().height < 50, 'helper button label wraps onto two lines');
+    } finally { g.toTitle(); ui.render(); }
+  });
+  test('best result comparison', () => {
+    eq(isBetterResult({ won: true, ms: 5000 }, { won: true, ms: 6000 }), true);
+    eq(isBetterResult({ level: 2, left: 10 }, { won: true, ms: 9e9 }), false);
+    eq(isBetterResult({ level: 2, left: 50 }, { level: 1, left: 3 }), true);
+    eq(isBetterResult({ level: 2, left: 10 }, { level: 2, left: 20 }), true);
+    eq(isBetterResult({ level: 1, left: 10 }, null), true);
+  });
+})();
+
+/* ===================== sound ===================== */
+const sound = (() => {
+  let ctx = null;
+  let muted = false;
+  try { muted = localStorage.getItem('snackstack.muted') === '1'; } catch (e) {}
+  function ac() {
+    if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function tone(freq, start, dur, type = 'triangle', vol = 0.15, slideTo = null) {
+    const c = ac(); if (!c || muted) return;
+    const t0 = c.currentTime + start;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  return {
+    get muted() { return muted; },
+    toggle() { muted = !muted; try { localStorage.setItem('snackstack.muted', muted ? '1' : '0'); } catch (e) {} },
+    click() { tone(620, 0, 0.07, 'triangle', 0.12, 420); },
+    pop() { tone(660, 0, 0.08, 'sine', 0.18); tone(880, 0.06, 0.08, 'sine', 0.18); tone(1180, 0.12, 0.12, 'sine', 0.16); },
+    lose() { tone(420, 0, 0.7, 'sawtooth', 0.08, 110); tone(300, 0.15, 0.6, 'triangle', 0.1, 90); },
+    win() { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, i * 0.12, 0.18, 'triangle', 0.15)); },
+    nope() { tone(180, 0, 0.08, 'square', 0.05); },
+  };
+})();
+
+/* ===================== ui ===================== */
+// TEMPORARY testing aid: shows a "Skip to Level 2" button while on Level 1. Set to false to remove it.
+const SHOW_SKIP = true;
+
+const ui = (() => {
+  const app = document.getElementById('app');
+  const game = createGame({ debug: DEBUG });
+  if (DEBUG) window.game = game;
+
+  // Layout in units (u px). Board 18 x 14 (+0.8 top margin), stacks/hold row at 15.5, tray at 18.
+  const BOARD_TOP = 0.3, ROW_Y = 15.5, HOLD_Y = 18.4, TRAY_Y = 21.2;
+  const STACK_STEP = 0.26, HOLD_W = 2.1, BAR_SLOT = 18 / 7;
+  let u = 30;
+  let busy = false;
+  const els = new Map(); // tile id -> element
+
+  app.innerHTML = `
+    <div class="topbar">
+      <span class="pill" id="lvl">Level 1</span>
+      <span class="pill" id="left">Tiles left: 0</span>
+      <button class="pill mute" id="skip">Skip<span class="long"> to Level 2</span></button>
+      <button class="pill mute" id="mute"></button>
+    </div>
+    <div class="stage" id="stage">
+      <div class="tray" id="tray"></div>
+    </div>
+    <div class="btns">
+      <button class="btn" id="b-pop">Pop out<span class="count">1</span></button>
+      <button class="btn" id="b-undo">Undo<span class="count">1</span></button>
+      <button class="btn" id="b-shuffle">Shuffle<span class="count">1</span></button>
+    </div>
+    <div class="banner" id="banner"></div>
+    <div id="overlay"></div>`;
+  const $ = id => document.getElementById(id);
+  const stage = $('stage'), tray = $('tray');
+  for (let k = 0; k < 7; k++) {
+    const s = document.createElement('div'); s.className = 'slot';
+    s.style.left = `calc(var(--u) * ${k * BAR_SLOT + (BAR_SLOT - 2.15) / 2} - 4px)`;
+    tray.appendChild(s);
+  }
+  const holdX = k => 9 - (HOLD_W * 3) / 2 + k * HOLD_W + (HOLD_W - 2) / 2;
+
+  function fit() {
+    // size from the real space left inside the safe area after the top bar and buttons
+    const cs = getComputedStyle(app);
+    const availW = app.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const availH = app.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const chrome = app.querySelector('.topbar').offsetHeight + app.querySelector('.btns').offsetHeight + 16;
+    const byW = (availW - 16) / 18;
+    const byH = (availH - chrome) / 24.8;
+    u = Math.max(14, Math.min(42, byW, byH));
+    document.documentElement.style.setProperty('--u', u + 'px');
+  }
+
+  function pos(t, where, k) {
+    if (where === 'bar') return { x: k * BAR_SLOT + (BAR_SLOT - 2) / 2, y: TRAY_Y + 0.42, z: 1000 + k };
+    if (where === 'hold') return { x: holdX(k), y: HOLD_Y, z: 900 + k };
+    if (t.stack === 'L') return { x: t.stackIndex * STACK_STEP, y: ROW_Y, z: 10 + t.stackIndex };
+    if (t.stack === 'R') return { x: 16 - t.stackIndex * STACK_STEP, y: ROW_Y, z: 10 + t.stackIndex };
+    // Board tiles are drawn exactly on their own spot (no lift), so a tile only ever looks covered
+    // when it is logically covered. Stack height is shown by the edge base underneath (see renderBases).
+    return { x: t.x, y: BOARD_TOP + t.y, z: 100 + t.layer * 10 };
+  }
+
+  // One base per occupied spot, drawn below every tile face: a dark tile shape with one cream+ink
+  // edge line per tile in the pile at that exact spot (max 6), so taller towers look thicker.
+  const bases = new Map(); // "x,y" -> element
+  function renderBases(board) {
+    const depth = new Map();
+    for (const t of board) if (!t.stack) { const k = t.x + ',' + t.y; depth.set(k, (depth.get(k) || 0) + 1); }
+    for (const [k, d] of depth) {
+      let b = bases.get(k);
+      if (!b) {
+        b = document.createElement('div'); b.className = 'tbase enter'; stage.appendChild(b); bases.set(k, b);
+        const nb = b; requestAnimationFrame(() => requestAnimationFrame(() => nb.classList.remove('enter')));
+      }
+      const [x, y] = k.split(',').map(Number);
+      b.style.left = x * u + 'px'; b.style.top = (BOARD_TOP + y) * u + 'px';
+      const shadows = [];
+      for (let i = 0; i < Math.min(d, 6); i++) {
+        const off = u * (0.16 + i * 0.08);
+        shadows.push(`0 ${off}px 0 #e0bd85`, `0 ${off + 2}px 0 #3b2a2a`);
+      }
+      b.style.boxShadow = shadows.join(',');
+    }
+    for (const [k, b] of bases) if (!depth.has(k)) { b.remove(); bases.delete(k); }
+  }
+
+  function getEl(t, p) {
+    let el = els.get(t.id);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'tile enter';
+      el.dataset.id = t.id;
+      el.innerHTML = '<div class="face"></div>';
+      el.style.left = p.x * u + 'px'; el.style.top = p.y * u + 'px';
+      stage.appendChild(el);
+      els.set(t.id, el);
+      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('enter')));
+    }
+    if (el.dataset.type !== String(t.type)) { el.dataset.type = t.type; el.firstChild.innerHTML = art.SNACKS[t.type].svg(); }
+    return el;
+  }
+
+  // view = {board, hold, bar}; keep = ids whose elements must not be removed (animating)
+  function render(view = game.state, keep = new Set()) {
+    const seen = new Set();
+    const place = (t, where, k, cls) => {
+      const p = pos(t, where, k);
+      const el = getEl(t, p);
+      el.style.left = p.x * u + 'px'; el.style.top = p.y * u + 'px'; el.style.zIndex = p.z;
+      el.classList.toggle('free', cls === 'free');
+      el.classList.toggle('covered', cls === 'covered');
+      el.classList.toggle('inbar', cls === 'inbar');
+      el.classList.toggle('onboard', where === 'board' && !t.stack);
+      seen.add(t.id);
+    };
+    renderBases(view.board);
+    for (const t of view.board) place(t, 'board', 0, rules.isFree(t, view.board) ? 'free' : 'covered');
+    view.hold.forEach((t, k) => place(t, 'hold', k, 'free'));
+    view.bar.forEach((t, k) => place(t, 'bar', k, 'inbar'));
+    for (const [id, el] of els) if (!seen.has(id) && !keep.has(id)) { el.remove(); els.delete(id); }
+    renderHud();
+  }
+
+  function renderHud() {
+    const s = game.state;
+    $('lvl').innerHTML = '<span class="long">Level </span><span class="short">Lv </span>' + s.level;
+    $('left').innerHTML = '<span class="long">Tiles left: </span><span class="short">Left </span>' + game.tilesLeft();
+    $('mute').innerHTML = '<span class="long">Sound: </span><span class="short">&#9834; </span>' + (sound.muted ? 'off' : 'on');
+    $('skip').style.display = SHOW_SKIP && s.screen === 'play' && s.level === 1 ? '' : 'none';
+    const play = s.screen === 'play';
+    const setBtn = (id, used, enabled) => {
+      const b = $(id); b.disabled = !play || used || !enabled || busy;
+      b.querySelector('.count').textContent = used ? '0' : '1';
+    };
+    setBtn('b-pop', s.used.pop, s.bar.length > 0 && s.hold.length === 0);
+    setBtn('b-undo', s.used.undo, game.canUndo());
+    setBtn('b-shuffle', s.used.shuffle, s.board.length > 1);
+  }
+
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const fmt = ms => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  function bestText() {
+    const b = game.loadBest();
+    if (!b) return 'No runs yet. Good luck!';
+    return b.won ? 'Best: cleared it in ' + fmt(b.ms) + '!' : 'Best: Level ' + b.level + ', ' + b.left + ' tiles left';
+  }
+
+  function sparkles(el) {
+    const r = el.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+    const colors = ['#ffd34d', '#ff8fc0', '#7fd6ff', '#9fe6c8', '#fff'];
+    for (let i = 0; i < 8; i++) {
+      const s = document.createElement('div'); s.className = 'sparkle';
+      const a = (Math.PI * 2 * i) / 8;
+      s.style.left = (r.left - sr.left + r.width / 2 - 5) + 'px'; s.style.top = (r.top - sr.top + r.height / 2 - 5) + 'px';
+      s.style.background = colors[i % colors.length];
+      s.style.setProperty('--dx', Math.cos(a) * u * 1.6 + 'px'); s.style.setProperty('--dy', Math.sin(a) * u * 1.6 + 'px');
+      stage.appendChild(s); setTimeout(() => s.remove(), 550);
+    }
+  }
+
+  async function banner(text, ms = 900) {
+    const b = $('banner'); b.textContent = text; b.classList.add('show');
+    await wait(ms); b.classList.remove('show');
+  }
+
+  function overlay(html) {
+    $('overlay').innerHTML = html ? `<div class="overlay"><div class="card">${html}</div></div>` : '';
+    const go = $('go'); if (go) go.onclick = () => { sound.click(); startRun(); };
+  }
+  function showScreen() {
+    const s = game.state;
+    const row = [0, 1, 2, 4, 12, 13].map(i => art.SNACKS[i].svg()).join('');
+    if (s.screen === 'title') overlay(`<h1>Snack Stack</h1><div class="row">${row}</div>
+      <p>Tap a snack to drop it in the tray.<br>3 alike pop. 7 in the tray and the run is over.</p>
+      <p class="best">${bestText()}</p><button class="btn big" id="go">Play</button>`);
+    else if (s.screen === 'lost') overlay(`<h1>Run over!</h1>
+      <p>You reached <b>Level ${s.level}</b> with <b>${game.tilesLeft()}</b> tiles left.</p>
+      <p class="best">${bestText()}</p><button class="btn big" id="go">Try again</button>`);
+    else if (s.screen === 'won') overlay(`<h1>You did it!</h1><div class="row">${row}</div>
+      <p>Every snack cleared in <b>${fmt(s.endTime - s.startTime)}</b>.</p>
+      <p class="best">${bestText()}</p><button class="btn big" id="go">Play again</button>`);
+    else overlay('');
+  }
+
+  async function startRun() {
+    tray.classList.remove('bad');
+    game.start();
+    render(); showScreen();
+    busy = true; renderHud();
+    await banner('Level 1', 700);
+    busy = false; renderHud();
+  }
+
+  async function onTileClick(id) {
+    const s = game.state;
+    const fromHold = s.hold.some(t => t.id === id);
+    const r = fromHold ? game.clickHold(id) : game.click(id);
+    const el = els.get(id);
+    if (!r.ok) { if (el && !el.classList.contains('inbar')) { el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); sound.nope(); } return; }
+    busy = true;
+    sound.click();
+    el.classList.add('flying');
+    const removedIds = new Set(r.removed.map(t => t.id));
+    // phase 1: tile flies into its slot (before any match is removed)
+    const view = r.levelCleared ? { board: [], hold: [], bar: r.barBefore } : { board: s.board, hold: s.hold, bar: r.barBefore };
+    render(view, removedIds);
+    await wait(190);
+    el.classList.remove('flying');
+    // phase 2: matched snacks pop
+    if (r.matched) {
+      sound.pop();
+      r.removed.forEach(t => { const e = els.get(t.id); if (e) { sparkles(e); e.classList.add('pop'); } });
+      await wait(210);
+    }
+    if (r.lost) {
+      render();
+      tray.classList.add('bad', 'shake'); sound.lose();
+      await wait(800);
+      tray.classList.remove('shake');
+      busy = false; showScreen(); renderHud();
+      return;
+    }
+    if (r.won) {
+      render({ board: [], hold: [], bar: [] });
+      sound.win(); await wait(300);
+      busy = false; showScreen(); renderHud();
+      return;
+    }
+    if (r.levelCleared) {
+      render({ board: [], hold: [], bar: [] });
+      sound.win();
+      await banner('Level 2', 1000);
+      render();
+      busy = false; renderHud();
+      return;
+    }
+    render();
+    busy = false; renderHud();
+  }
+
+  stage.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    const el = e.target.closest('.tile');
+    if (!el || busy || game.state.screen !== 'play') return;
+    e.preventDefault();
+    onTileClick(Number(el.dataset.id));
+  });
+  $('b-pop').onclick = () => { if (!busy && game.popOut()) { sound.click(); render(); } };
+  $('b-undo').onclick = () => { if (!busy && game.undo()) { sound.click(); render(); } };
+  $('b-shuffle').onclick = () => {
+    if (busy || !game.shuffle()) return;
+    sound.pop(); render();
+    for (const t of game.state.board) { const e = els.get(t.id); if (e) { e.classList.remove('wiggle'); void e.offsetWidth; e.classList.add('wiggle'); } }
+  };
+  $('mute').onclick = () => { sound.toggle(); renderHud(); };
+  $('skip').onclick = async () => {
+    if (busy || !game.skipLevel()) return;
+    busy = true; sound.click();
+    render({ board: [], hold: [], bar: [] });
+    await banner('Level 2', 900);
+    render(); busy = false; renderHud();
+  };
+  window.addEventListener('resize', () => { fit(); render(); });
+  window.addEventListener('orientationchange', () => setTimeout(() => { fit(); render(); }, 200));
+  // iOS Safari ignores user-scalable=no; block pinch-zoom gestures directly
+  document.addEventListener('gesturestart', e => e.preventDefault());
+
+  fit(); render(); showScreen();
+
+  if (DEBUG && /[?&]gallery\b/.test(location.search)) {
+    const g = document.createElement('div'); g.className = 'gallery';
+    g.innerHTML = art.SNACKS.map(s => `<div><div class="tile" style="--u:55px"><div class="face">${s.svg()}</div></div><div class="lbl">${s.name}</div></div>`).join('');
+    document.body.appendChild(g);
+  }
+  return { game, render };
+})();
+
+if (DEBUG) {
+  const r = selftest.run();
+  const b = document.createElement('div'); b.className = 'debugbadge';
+  b.textContent = 'debug | tests ' + r.passed + '/' + (r.passed + r.failed);
+  document.body.appendChild(b);
+}
+</script>
+</body>
+</html>
