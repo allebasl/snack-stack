@@ -299,6 +299,15 @@ function mulberry32(seed) {
       ok(b.getBoundingClientRect().height < 50, 'helper button label wraps onto two lines');
     } finally { g.toTitle(); ui.render(); }
   });
+  // ---- Rewards ----
+  const CHAR_IDS = ['princess_sheep', 'gentleman_sheep', 'queen_sheep', 'frilly_cat', 'bunny_ballerina', 'frog_prince', 'bear_wizard', 'golden_sheep'];
+  const SKIN_IDS = ['skin_classic', 'skin_strawberry', 'skin_mint', 'skin_starry', 'skin_cookie'];
+  test('every reward has art', () => {
+    eq(Object.keys(charArt.CHARACTERS).sort(), CHAR_IDS.slice().sort());
+    for (const id of CHAR_IDS) ok(/viewBox="0 0 200 240"/.test(charArt.CHARACTERS[id].svg()) && charArt.CHARACTERS[id].name, id);
+    eq(Object.keys(charArt.SKINS).sort(), SKIN_IDS.slice().sort());
+    for (const id of SKIN_IDS) { const s = charArt.SKINS[id]; ok(s.name && s.face && s.edge && s.ink && typeof s.bg === 'string', id); }
+  });
   test('best result comparison', () => {
     eq(isBetterResult({ won: true, ms: 5000 }, { won: true, ms: 6000 }), true);
     eq(isBetterResult({ level: 2, left: 10 }, { won: true, ms: 9e9 }), false);

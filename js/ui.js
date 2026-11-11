@@ -272,7 +272,8 @@ const ui = (() => {
 
   if (DEBUG && /[?&]gallery\b/.test(location.search)) {
     const g = document.createElement('div'); g.className = 'gallery';
-    g.innerHTML = art.SNACKS.map(s => `<div><div class="tile" style="--u:55px"><div class="face">${s.svg()}</div></div><div class="lbl">${s.name}</div></div>`).join('');
+    g.innerHTML = art.SNACKS.map(s => `<div><div class="tile" style="--u:55px"><div class="face">${s.svg()}</div></div><div class="lbl">${s.name}</div></div>`).join('')
+      + Object.values(charArt.CHARACTERS).map(c => `<div style="width:110px;text-align:center">${c.svg().replace('<svg ', '<svg width="110" height="132" ')}<div class="lbl">${c.name}</div></div>`).join('');
     document.body.appendChild(g);
   }
   return { game, render };
