@@ -15,15 +15,22 @@ const ui = (() => {
   let busy = false;
   const els = new Map(); // tile id -> element
 
+  // Rewards collection, saved on this device. Reading window.localStorage can itself throw (blocked site data).
+  let storage = null;
+  try { storage = window.localStorage; } catch (e) { /* use memory only */ }
+  let col = createCollection(storage || { getItem: () => null, setItem: () => {} });
+
   app.innerHTML = `
     <div class="topbar">
       <span class="pill" id="lvl">Level 1</span>
       <span class="pill" id="left">Tiles left: 0</span>
       <button class="pill mute" id="skip">Skip<span class="long"> to Level 2</span></button>
+      <button class="pill mute" id="testwin">Test win</button>
       <button class="pill mute" id="mute"></button>
     </div>
     <div class="stage" id="stage">
       <div class="tray" id="tray"></div>
+      <div class="buddy" id="buddy"></div>
     </div>
     <div class="btns">
       <button class="btn" id="b-pop">Pop out<span class="count">1</span></button>
@@ -80,7 +87,7 @@ const ui = (() => {
       const shadows = [];
       for (let i = 0; i < Math.min(d, 6); i++) {
         const off = u * (0.16 + i * 0.08);
-        shadows.push(`0 ${off}px 0 #e0bd85`, `0 ${off + 2}px 0 #3b2a2a`);
+        shadows.push(`0 ${off}px 0 var(--skin-edge)`, `0 ${off + 2}px 0 var(--skin-ink)`);
       }
       b.style.boxShadow = shadows.join(',');
     }
@@ -130,6 +137,8 @@ const ui = (() => {
     $('left').innerHTML = '<span class="long">Tiles left: </span><span class="short">Left </span>' + game.tilesLeft();
     $('mute').innerHTML = '<span class="long">Sound: </span><span class="short">&#9834; </span>' + (sound.muted ? 'off' : 'on');
     $('skip').style.display = SHOW_SKIP && s.screen === 'play' && s.level === 1 ? '' : 'none';
+    $('testwin').style.display = SHOW_SKIP && s.screen === 'play' && s.level === 2 ? '' : 'none';
+    renderBuddy();
     const play = s.screen === 'play';
     const setBtn = (id, used, enabled) => {
       const b = $(id); b.disabled = !play || used || !enabled || busy;
@@ -166,16 +175,129 @@ const ui = (() => {
     await wait(ms); b.classList.remove('show');
   }
 
-  function overlay(html) {
-    $('overlay').innerHTML = html ? `<div class="overlay"><div class="card">${html}</div></div>` : '';
+  function overlay(html, cls = '') {
+    $('overlay').innerHTML = html ? `<div class="overlay"><div class="card ${cls}">${html}</div></div>` : '';
     const go = $('go'); if (go) go.onclick = () => { sound.click(); startRun(); };
+    const al = $('album'); if (al) al.onclick = () => { sound.click(); openAlbum(); };
   }
+
+  // ---- skins ----
+  function applySkin(id) {
+    const s = charArt.SKINS[id] || charArt.SKINS.skin_classic;
+    stage.style.setProperty('--skin-face', s.face);
+    stage.style.setProperty('--skin-edge', s.edge);
+    stage.style.setProperty('--skin-ink', s.ink);
+    stage.style.setProperty('--skin-bg', s.bg || 'none');
+  }
+  // small sample tile drawn in a given skin (album + mystery cards)
+  const miniTile = id => {
+    const s = charArt.SKINS[id];
+    return `<div class="mini" style="background:${s.ink};box-shadow:0 6px 0 ${s.edge}, 0 8px 0 ${s.ink}">
+      <div class="f" style="background:${s.bg ? s.bg + ',' : ''}${s.face};border:3px solid ${s.ink}">${art.SNACKS[0].svg()}</div></div>`;
+  };
+  const rewardArt = id => (charArt.CHARACTERS[id] ? charArt.CHARACTERS[id].svg() : miniTile(id));
+  const rewardName = id => (charArt.CHARACTERS[id] || charArt.SKINS[id]).name;
+
+  // ---- collection album ----
+  let albumTab = 'c';
+  function openAlbum() {
+    const chars = Object.keys(charArt.CHARACTERS), skins = Object.keys(charArt.SKINS);
+    const slot = (id, isSkin) => {
+      const owned = id === DEFAULT_SKIN || col.has(id);
+      const equipped = isSkin ? col.skin() === id : col.buddy() === id;
+      return `<button class="aslot${owned ? '' : ' locked'}${equipped ? ' equipped' : ''}" data-id="${id}">
+        ${equipped ? `<span class="eq">${isSkin ? 'Equipped' : 'Buddy'}</span>` : ''}
+        ${rewardArt(id)}${owned ? '' : '<span class="q">?</span>'}<span class="nm">${owned ? rewardName(id) : '???'}</span></button>`;
+    };
+    overlay(`<h1 style="font-size:32px">Collection</h1>
+      <p class="best">${col.count()} / ${REWARDS.length} found. Beat Level 2 to win more!</p>
+      <div class="tabs"><button class="tab${albumTab === 'c' ? ' on' : ''}" data-tab="c">Characters</button><button class="tab${albumTab === 's' ? ' on' : ''}" data-tab="s">Card skins</button></div>
+      <div class="album">
+        <div class="agrid" style="display:${albumTab === 'c' ? 'flex' : 'none'}">${chars.map(id => slot(id, false)).join('')}</div>
+        <div class="agrid" style="display:${albumTab === 's' ? 'flex' : 'none'}">${skins.map(id => slot(id, true)).join('')}</div>
+      </div>
+      <p style="font-size:13px;opacity:.7">Tap a character to make it your buddy. Tap a skin to use it.</p>
+      <button class="btn big" id="album-close">Close</button>`, 'wide');
+    document.querySelectorAll('.tab').forEach(b => { b.onclick = () => { albumTab = b.dataset.tab; openAlbum(); }; });
+    document.querySelectorAll('.album .aslot').forEach(b => {
+      b.onclick = () => {
+        const id = b.dataset.id;
+        if (charArt.SKINS[id]) { if (col.setSkin(id)) applySkin(id); else return; }
+        else if (!col.setBuddy(col.buddy() === id ? null : id)) return;
+        sound.click(); openAlbum();
+      };
+    });
+    $('album-close').onclick = () => { sound.click(); showScreen(); };
+  }
+
+  // ---- mystery cards after a Level 2 win ----
+  // Shows min(3, pool) face-down cards; the first one tapped is claimed. Resolves when Continue is pressed.
+  function showMystery() {
+    const cards = col.drawCards();
+    if (!cards.length) return Promise.resolve();
+    return new Promise(resolve => {
+      overlay(`<h1 style="font-size:34px">Pick a card!</h1><p>Your prize for beating Level 2</p>
+        <div class="mystery mrow">${cards.map(id => `<button class="mcard" data-id="${id}"><div class="inner">
+          <div class="back">?</div><div class="front">${rewardArt(id)}<b>${rewardName(id)}</b></div></div></button>`).join('')}</div>
+        <p class="best" id="mnote">&nbsp;</p><button class="btn big" id="mcont" style="visibility:hidden">Continue</button>`, 'wide');
+      let picked = false;
+      document.querySelectorAll('.mystery .mcard').forEach(c => {
+        c.onclick = () => {
+          if (picked) return;
+          picked = true;
+          col.claim(c.dataset.id);
+          c.classList.add('flipped', 'picked'); sound.pop();
+          setTimeout(() => {
+            document.querySelectorAll('.mystery .mcard:not(.picked)').forEach(o => o.classList.add('flipped', 'other'));
+            const n = $('mnote'); if (n) n.textContent = cards.length > 1 ? 'You got ' + rewardName(c.dataset.id) + '! The others go back in the pool.' : 'You got ' + rewardName(c.dataset.id) + '!';
+            const b = $('mcont'); if (b) { b.style.visibility = 'visible'; b.onclick = () => { sound.click(); resolve(); }; }
+          }, 650);
+        };
+      });
+    });
+  }
+  function showGolden() {
+    return new Promise(resolve => {
+      overlay(`<h1 style="font-size:32px">Collection complete!</h1><div class="reveal">${charArt.CHARACTERS[GOLDEN_ID].svg()}</div>
+        <p>You found everything, so the <b>Golden sheep</b> joins you!</p><button class="btn big" id="gcont">Continue</button>`);
+      sound.win();
+      $('gcont').onclick = () => { sound.click(); resolve(); };
+    });
+  }
+  async function afterWin() {
+    busy = true;
+    render({ board: [], hold: [], bar: [] });
+    setMood('dance'); sound.win();
+    await wait(900);
+    await showMystery();
+    if (col.grantGoldenIfComplete()) await showGolden();
+    busy = false; showScreen(); renderHud();
+  }
+
+  // ---- buddy ----
+  const buddyEl = $('buddy');
+  let mood = 'idle';
+  function setMood(m) { mood = m; buddyEl.className = 'buddy ' + m + (buddyEl.classList.contains('show') ? ' show' : ''); renderBuddy(); }
+  function renderBuddy() {
+    const id = col.buddy();
+    const show = !!id && game.state.screen !== 'title';
+    buddyEl.classList.toggle('show', show);
+    if (!show) return;
+    if (buddyEl.dataset.id !== id) { buddyEl.dataset.id = id; buddyEl.innerHTML = charArt.CHARACTERS[id].svg(); }
+    if (mood === 'idle' || mood === 'nervous') {
+      const want = game.state.bar.length >= 5 ? 'nervous' : 'idle';
+      if (want !== mood) { mood = want; buddyEl.classList.remove('idle', 'nervous'); buddyEl.classList.add(want); }
+    }
+  }
+  function cheer() { setMood('happy'); setTimeout(() => { if (mood === 'happy') setMood('idle'); }, 650); }
+
   function showScreen() {
     const s = game.state;
     const row = [0, 1, 2, 4, 12, 13].map(i => art.SNACKS[i].svg()).join('');
     if (s.screen === 'title') overlay(`<h1>Snack Stack</h1><div class="row">${row}</div>
       <p>Tap a snack to drop it in the tray.<br>3 alike pop. 7 in the tray and the run is over.</p>
-      <p class="best">${bestText()}</p><button class="btn big" id="go">Play</button>`);
+      <p class="best">${bestText()}</p><button class="btn big" id="go">Play</button>
+      <div><button class="btn" id="album" style="margin-top:12px;background:#ffb3d1">Collection<span class="count">${col.count()} / ${REWARDS.length}</span></button></div>`);
     else if (s.screen === 'lost') overlay(`<h1>Run over!</h1>
       <p>You reached <b>Level ${s.level}</b> with <b>${game.tilesLeft()}</b> tiles left.</p>
       <p class="best">${bestText()}</p><button class="btn big" id="go">Try again</button>`);
@@ -187,6 +309,7 @@ const ui = (() => {
 
   async function startRun() {
     tray.classList.remove('bad');
+    mood = 'idle'; buddyEl.className = 'buddy idle';
     game.start();
     render(); showScreen();
     busy = true; renderHud();
@@ -211,24 +334,19 @@ const ui = (() => {
     el.classList.remove('flying');
     // phase 2: matched snacks pop
     if (r.matched) {
-      sound.pop();
+      sound.pop(); cheer();
       r.removed.forEach(t => { const e = els.get(t.id); if (e) { sparkles(e); e.classList.add('pop'); } });
       await wait(210);
     }
     if (r.lost) {
       render();
-      tray.classList.add('bad', 'shake'); sound.lose();
+      tray.classList.add('bad', 'shake'); sound.lose(); setMood('sad');
       await wait(800);
       tray.classList.remove('shake');
       busy = false; showScreen(); renderHud();
       return;
     }
-    if (r.won) {
-      render({ board: [], hold: [], bar: [] });
-      sound.win(); await wait(300);
-      busy = false; showScreen(); renderHud();
-      return;
-    }
+    if (r.won) { await afterWin(); return; }
     if (r.levelCleared) {
       render({ board: [], hold: [], bar: [] });
       sound.win();
@@ -263,11 +381,13 @@ const ui = (() => {
     await banner('Level 2', 900);
     render(); busy = false; renderHud();
   };
+  $('testwin').onclick = () => { if (!busy && game.winNow()) afterWin(); };
   window.addEventListener('resize', () => { fit(); render(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { fit(); render(); }, 200));
   // iOS Safari ignores user-scalable=no; block pinch-zoom gestures directly
   document.addEventListener('gesturestart', e => e.preventDefault());
 
+  applySkin(col.skin());
   fit(); render(); showScreen();
 
   if (DEBUG && /[?&]gallery\b/.test(location.search)) {
@@ -276,5 +396,11 @@ const ui = (() => {
       + Object.values(charArt.CHARACTERS).map(c => `<div style="width:110px;text-align:center">${c.svg().replace('<svg ', '<svg width="110" height="132" ')}<div class="lbl">${c.name}</div></div>`).join('');
     document.body.appendChild(g);
   }
-  return { game, render };
+  return {
+    game, render, openAlbum, showMystery, applySkin,
+    collection: () => col,
+    // tests swap in a throwaway collection; returns the previous one so it can be restored
+    useCollection(c) { const prev = col; col = c; applySkin(col.skin()); buddyEl.dataset.id = ''; renderBuddy(); return prev; },
+    closeOverlay() { showScreen(); },
+  };
 })();

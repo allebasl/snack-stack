@@ -12,7 +12,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <title>Snack Stack</title>
 <style>
-:root { --u: 30px; --ink: #3b2a2a; }
+:root { --u: 30px; --ink: #3b2a2a;
+  /* card skin (set on #stage by the equipped skin; these are the Classic defaults) */
+  --skin-face: #fff8e7; --skin-edge: #e0bd85; --skin-ink: #3b2a2a; --skin-bg: none; }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; }
 /* phones: no double-tap zoom, no pull-to-refresh/bounce, no long-press menu, no grey tap flash */
@@ -35,12 +37,12 @@ body {
 .stage { position: relative; width: calc(var(--u) * 18); height: calc(var(--u) * 24.6); touch-action: manipulation; }
 .tile { position: absolute; width: calc(var(--u) * 2); height: calc(var(--u) * 2); cursor: pointer;
   transition: left .18s ease, top .18s ease, transform .2s ease, opacity .2s ease; }
-.tile .face { position: absolute; inset: 0; padding: 7%; background: #fff8e7;
-  border: max(2px, calc(var(--u) * .09)) solid var(--ink); border-radius: 22%;
-  box-shadow: 0 calc(var(--u) * .16) 0 #e0bd85, 0 calc(var(--u) * .16 + 2px) 0 var(--ink);
+.tile .face { position: absolute; inset: 0; padding: 7%; background: var(--skin-bg); background-color: var(--skin-face);
+  border: max(2px, calc(var(--u) * .09)) solid var(--skin-ink); border-radius: 22%;
+  box-shadow: 0 calc(var(--u) * .16) 0 var(--skin-edge), 0 calc(var(--u) * .16 + 2px) 0 var(--skin-ink);
   transition: filter .15s, transform .1s; }
 .tile.onboard .face { box-shadow: none; }
-.tbase { position: absolute; width: calc(var(--u) * 2); height: calc(var(--u) * 2); border-radius: 22%; background: var(--ink); z-index: 5; pointer-events: none; transition: opacity .2s ease; }
+.tbase { position: absolute; width: calc(var(--u) * 2); height: calc(var(--u) * 2); border-radius: 22%; background: var(--skin-ink); z-index: 5; pointer-events: none; transition: opacity .2s ease; }
 .tbase.enter { opacity: 0; }
 .tile svg { width: 100%; height: 100%; display: block; pointer-events: none; }
 .tile.covered { cursor: default; }
@@ -85,6 +87,52 @@ body {
 .gallery .tile { position: relative; width: 110px; height: 110px; }
 .gallery .lbl { text-align: center; font-weight: bold; margin-top: 10px; }
 .btn { white-space: nowrap; }
+/* ---- collection album ---- */
+.card.wide { max-width: min(560px, 94vw); max-height: 92dvh; overflow-y: auto; }
+.tabs { display: flex; justify-content: center; gap: 8px; margin: 6px 0 12px; }
+.tab { font: inherit; font-weight: bold; color: var(--ink); background: #fff; border: 3px solid var(--ink); border-radius: 999px; padding: 4px 16px; cursor: pointer; }
+.tab.on { background: #ffd34d; }
+.agrid { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.aslot { position: relative; width: 104px; padding: 6px 4px 4px; background: #fff; border: 3px solid var(--ink); border-radius: 16px; cursor: pointer; font: inherit; color: var(--ink); }
+.aslot svg { width: 72px; height: 86px; display: block; margin: 0 auto; }
+.aslot .nm { display: block; font-size: 12px; font-weight: bold; min-height: 2.4em; line-height: 1.2; }
+.aslot.locked { cursor: default; background: #efe6e2; }
+.aslot.locked svg, .aslot.locked .mini { filter: brightness(0) opacity(.18); }
+.aslot.locked .q { position: absolute; left: 0; right: 0; top: 30px; font-size: 30px; font-weight: bold; opacity: .5; }
+.aslot.equipped { border-color: #e6a817; box-shadow: 0 0 0 3px #ffd34d; }
+.aslot .eq { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #ffd34d; border: 2px solid var(--ink); border-radius: 999px; font-size: 11px; font-weight: bold; padding: 0 6px; white-space: nowrap; }
+.mini { width: 60px; height: 60px; margin: 13px auto; position: relative; border-radius: 22%; }
+.mini .f { position: absolute; inset: 0; border-radius: 22%; padding: 7%; }
+.mini .f svg { width: 100%; height: 100%; margin: 0; }
+/* ---- mystery cards ---- */
+.mrow { display: flex; justify-content: center; gap: 12px; margin: 12px 0; }
+.mcard { width: 120px; height: 168px; perspective: 600px; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: var(--ink); }
+.mcard .inner { position: relative; width: 100%; height: 100%; transition: transform .5s ease; transform-style: preserve-3d; }
+.mcard.flipped .inner { transform: rotateY(180deg); }
+.mcard .back, .mcard .front { position: absolute; inset: 0; border: 3px solid var(--ink); border-radius: 16px; backface-visibility: hidden; -webkit-backface-visibility: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.mcard .back { background: #ff9fc8; background-image: radial-gradient(circle, rgba(255,255,255,.6) 3px, transparent 3.5px); background-size: 18px 18px; font-size: 54px; font-weight: bold; color: #fff; text-shadow: 0 3px 0 var(--ink); box-shadow: 0 5px 0 var(--ink); }
+.mcard:not(.flipped):hover .back { transform: translateY(-3px); }
+.mcard .front { background: #fff8e7; transform: rotateY(180deg); box-shadow: 0 5px 0 var(--ink); padding: 6px; }
+.mcard .front svg { width: 86px; height: 103px; }
+.mcard .front b { font-size: 13px; line-height: 1.2; margin-top: 4px; }
+.mcard.picked .front { background: #fff3b0; box-shadow: 0 0 0 4px #ffd34d, 0 5px 0 var(--ink); }
+.mcard.other { opacity: .55; cursor: default; }
+@media (max-width: 520px) { .mcard { width: 96px; height: 140px; } .mcard .front svg { width: 70px; height: 84px; } .mcard .back { font-size: 42px; } .mrow { gap: 8px; } }
+.reveal svg { width: 160px; height: 192px; }
+/* ---- buddy ---- */
+.buddy { position: absolute; left: calc(var(--u) * 1.7); top: calc(var(--u) * 17.75); width: calc(var(--u) * 2.7); height: calc(var(--u) * 3.25);
+  z-index: 950; pointer-events: none; transform-origin: 50% 100%; display: none; }
+.buddy.show { display: block; }
+.buddy svg { width: 100%; height: 100%; display: block; }
+.buddy.idle { animation: bob 2.4s ease-in-out infinite; }
+.buddy.happy { animation: hop .6s ease; }
+.buddy.nervous { animation: wobble .5s ease-in-out infinite; }
+.buddy.sad { transform: translateY(6%) rotate(-8deg); filter: saturate(.6) brightness(.9); transition: transform .5s ease, filter .5s ease; }
+.buddy.dance { animation: dance .5s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-3%) scaleY(1.02); } }
+@keyframes hop { 30% { transform: translateY(-22%) rotate(-6deg); } 60% { transform: translateY(0) scale(1.06, .94); } }
+@keyframes wobble { 25% { transform: rotate(-5deg); } 75% { transform: rotate(5deg); } }
+@keyframes dance { 25% { transform: translateY(-12%) rotate(-10deg); } 75% { transform: translateY(-12%) rotate(10deg); } }
 /* phones / narrow windows (kept last so it overrides the rules above) */
 @media (max-width: 520px) {
   .topbar { height: 40px; gap: 4px; font-size: 13px; }

@@ -102,6 +102,13 @@ function createGame(opts = {}) {
     state, start, click, clickHold, popOut, undo, canUndo, shuffle, tilesLeft, loadBest,
     onChange(cb) { listeners.push(cb); },
     toTitle() { state.screen = 'title'; emit(); },
+    // Testing shortcut: clear Level 2 instantly. Counts as a real win (best time, rewards).
+    winNow() {
+      if (state.screen !== 'play' || state.level !== 2) return false;
+      Object.assign(state, { board: [], bar: [], hold: [], lastMove: null, screen: 'won', endTime: now() });
+      saveBest({ won: true, ms: state.endTime - state.startTime });
+      emit(); return true;
+    },
     // Testing shortcut: jump straight from Level 1 to a fresh Level 2 (helpers keep their used state).
     skipLevel() {
       if (state.screen !== 'play' || state.level !== 1) return false;

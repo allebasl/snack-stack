@@ -247,11 +247,17 @@ function mulberry32(seed) {
     eq(g.state.level, 1); eq(g.state.used, { pop: false, undo: false, shuffle: false }); eq(g.state.hold.length, 0);
   });
   test('createGame survives blocked localStorage', () => {
+    const owner = Object.prototype.hasOwnProperty.call(window, 'localStorage') ? window : Object.getPrototypeOf(window);
+    const original = Object.getOwnPropertyDescriptor(owner, 'localStorage');
     Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new Error('SecurityError'); } });
     try {
       const g = createGame({ levelFactory: () => board1(100) });
       g.start(); g.click(101); eq(g.loadBest(), null);
-    } finally { delete window.localStorage; }
+    } finally {
+      delete window.localStorage;
+      if (owner === window && original) Object.defineProperty(window, 'localStorage', original);
+    }
+    ok(window.localStorage && typeof window.localStorage.getItem === 'function', 'real localStorage restored');
   });
   test('right-click does not place a tile', () => {
     const g = ui.game; g.start(); ui.render();
@@ -356,6 +362,53 @@ function mulberry32(seed) {
   test('blocked storage does not throw', () => {
     const bad = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
     const c = newCol(bad); eq(c.claim('bunny_ballerina'), true); ok(c.has('bunny_ballerina'));
+  });
+  // UI reward tests swap in a throwaway collection so the player's real saved one is never touched
+  const withCol = (c, fn) => { const prev = ui.useCollection(c); try { return fn(c); } finally { ui.useCollection(prev); ui.closeOverlay(); } };
+  test('applySkin sets stage vars', () => {
+    const c = newCol(); c.claim('skin_starry'); c.setSkin('skin_starry');
+    withCol(c, () => eq(getComputedStyle(document.getElementById('stage')).getPropertyValue('--skin-face').trim(), '#ece8ff'));
+    eq(getComputedStyle(document.getElementById('stage')).getPropertyValue('--skin-face').trim(), charArt.SKINS[ui.collection().skin()].face);
+  });
+  test('album shows silhouettes for unowned', () => withCol(newCol(), () => {
+    ui.openAlbum();
+    eq(document.querySelectorAll('.album .aslot.locked').length, 12);
+    eq(document.querySelectorAll('.album .aslot:not(.locked)').length, 1);
+  }));
+  test('album equips owned items', () => withCol(newCol(), c => {
+    c.claim('frog_prince'); c.claim('skin_mint'); ui.openAlbum();
+    document.querySelector('.album .aslot[data-id="skin_mint"]').click(); eq(c.skin(), 'skin_mint');
+    document.querySelector('.album .aslot[data-id="frog_prince"]').click(); eq(c.buddy(), null);
+    document.querySelector('.album .aslot[data-id="frog_prince"]').click(); eq(c.buddy(), 'frog_prince');
+    document.querySelector('.album .aslot[data-id="queen_sheep"]').click(); eq(c.buddy(), 'frog_prince');
+  }));
+  test('winNow only on level 2', () => {
+    const { g, storage } = mk(); eq(g.winNow(), false); eq(g.state.screen, 'play');
+    g.skipLevel(); eq(g.winNow(), true); eq(g.state.screen, 'won'); ok(JSON.parse(storage.getItem('snackstack.best')).won);
+  });
+  test('mystery screen shows min(3,pool) cards', () => {
+    withCol(newCol(), () => { ui.showMystery(); eq(document.querySelectorAll('.mystery .mcard').length, 3); });
+    const c = newCol(); POOL_IDS.slice(0, 10).forEach(id => c.claim(id));
+    withCol(c, () => { ui.showMystery(); eq(document.querySelectorAll('.mystery .mcard').length, 1); });
+  });
+  test('only one card can be claimed', () => withCol(newCol(), c => {
+    ui.showMystery(); const cards = document.querySelectorAll('.mystery .mcard');
+    cards[0].click(); cards[1].click(); cards[0].click(); eq(c.count(), 1);
+  }));
+  test('buddy does not overlap tiles', () => {
+    const c = newCol(); c.claim('bear_wizard');
+    withCol(c, () => {
+      const g = ui.game; g.start(); g.skipLevel(); ui.render();
+      try {
+        const b = document.getElementById('buddy'); ok(getComputedStyle(b).display !== 'none', 'buddy hidden');
+        const br = b.getBoundingClientRect();
+        for (const el of document.querySelectorAll('#stage .tile, #tray')) {
+          const r = el.getBoundingClientRect();
+          const ox = Math.min(br.right, r.right) - Math.max(br.left, r.left), oy = Math.min(br.bottom, r.bottom) - Math.max(br.top, r.top);
+          ok(!(ox > 1 && oy > 1), 'buddy overlaps ' + (el.dataset.id || el.id));
+        }
+      } finally { g.toTitle(); ui.render(); }
+    });
   });
   test('best result comparison', () => {
     eq(isBetterResult({ won: true, ms: 5000 }, { won: true, ms: 6000 }), true);
