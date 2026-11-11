@@ -308,6 +308,55 @@ function mulberry32(seed) {
     eq(Object.keys(charArt.SKINS).sort(), SKIN_IDS.slice().sort());
     for (const id of SKIN_IDS) { const s = charArt.SKINS[id]; ok(s.name && s.face && s.edge && s.ink && typeof s.bg === 'string', id); }
   });
+  const POOL_IDS = ['princess_sheep', 'gentleman_sheep', 'queen_sheep', 'frilly_cat', 'bunny_ballerina', 'frog_prince', 'bear_wizard',
+    'skin_strawberry', 'skin_mint', 'skin_starry', 'skin_cookie'];
+  const newCol = (storage = fakeStorage()) => createCollection(storage);
+  test('REWARDS lists 12 rewards in spec order', () => {
+    eq(REWARDS.map(r => r.id), [...POOL_IDS.slice(0, 7), 'golden_sheep', ...POOL_IDS.slice(7)]);
+    ok(REWARDS.every(r => (r.kind === 'character') === !r.id.startsWith('skin_')));
+  });
+  test('pool excludes owned and golden', () => {
+    const c = newCol(); c.claim('frog_prince');
+    const p = c.pool(); eq(p.length, 10); ok(!p.includes('golden_sheep') && !p.includes('frog_prince'));
+  });
+  test('drawCards distinct, <=3, fewer when pool small', () => {
+    const c = newCol(); const d = c.drawCards(mulberry32(1));
+    eq(d.length, 3); eq(new Set(d).size, 3); ok(d.every(id => c.pool().includes(id)));
+    POOL_IDS.slice(0, 10).forEach(id => c.claim(id)); eq(c.drawCards(mulberry32(2)).length, 1);
+    c.claim(POOL_IDS[10]); eq(c.drawCards(mulberry32(3)).length, 0);
+  });
+  test('claim once', () => {
+    const c = newCol(); eq(c.claim('queen_sheep'), true); eq(c.claim('queen_sheep'), false); eq(c.owned().length, 1); eq(c.count(), 1);
+  });
+  test('golden after all 11', () => {
+    const c = newCol(); POOL_IDS.slice(0, 10).forEach(id => c.claim(id));
+    eq(c.grantGoldenIfComplete(), false); c.claim(POOL_IDS[10]);
+    eq(c.grantGoldenIfComplete(), true); ok(c.has('golden_sheep')); eq(c.grantGoldenIfComplete(), false); eq(c.count(), 12);
+  });
+  test('first character auto-equips buddy, skins do not', () => {
+    const c = newCol(); c.claim('skin_mint'); eq(c.buddy(), null); eq(c.skin(), 'skin_classic');
+    c.claim('bear_wizard'); eq(c.buddy(), 'bear_wizard'); c.claim('frog_prince'); eq(c.buddy(), 'bear_wizard');
+  });
+  test('equip rules', () => {
+    const c = newCol(); eq(c.setSkin('skin_starry'), false); c.claim('skin_starry'); eq(c.setSkin('skin_starry'), true); eq(c.skin(), 'skin_starry');
+    eq(c.setSkin('skin_classic'), true); eq(c.setBuddy(null), true); eq(c.setBuddy('queen_sheep'), false); eq(c.buddy(), null);
+    eq(c.setSkin('frog_prince'), false); c.claim('frog_prince'); eq(c.setBuddy('skin_starry'), false);
+  });
+  test('save/load round-trip', () => {
+    const st = fakeStorage(); const a = newCol(st); a.claim('frilly_cat'); a.claim('skin_cookie'); a.setSkin('skin_cookie');
+    const b = newCol(st); eq(b.owned().sort(), ['frilly_cat', 'skin_cookie']); eq(b.buddy(), 'frilly_cat'); eq(b.skin(), 'skin_cookie');
+  });
+  test('load sanitises bad data', () => {
+    const st = fakeStorage(); st.setItem('snackstack.collection', '{"owned":"x","buddy":"queen_sheep","skin":"nope"}');
+    let c = newCol(st); eq(c.owned(), []); eq(c.buddy(), null); eq(c.skin(), 'skin_classic');
+    st.setItem('snackstack.collection', '{"owned":["frog_prince","dragon",5],"buddy":"frog_prince","skin":"skin_mint"}');
+    c = newCol(st); eq(c.owned(), ['frog_prince']); eq(c.buddy(), 'frog_prince'); eq(c.skin(), 'skin_classic');
+    st.setItem('snackstack.collection', 'not json'); c = newCol(st); eq(c.owned(), []);
+  });
+  test('blocked storage does not throw', () => {
+    const bad = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
+    const c = newCol(bad); eq(c.claim('bunny_ballerina'), true); ok(c.has('bunny_ballerina'));
+  });
   test('best result comparison', () => {
     eq(isBetterResult({ won: true, ms: 5000 }, { won: true, ms: 6000 }), true);
     eq(isBetterResult({ level: 2, left: 10 }, { won: true, ms: 9e9 }), false);
