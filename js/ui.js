@@ -20,6 +20,15 @@ const ui = (() => {
   try { storage = window.localStorage; } catch (e) { /* use memory only */ }
   let col = createCollection(storage || { getItem: () => null, setItem: () => {} });
 
+  // Chosen difficulty, remembered on this device.
+  const DIFFS = generator.DIFFICULTIES;
+  let diff = 'light';
+  try { const d = storage && storage.getItem('snackstack.difficulty'); if (DIFFS[d]) diff = d; } catch (e) { /* default */ }
+  function setDiff(d) { if (!DIFFS[d]) return; diff = d; try { storage && storage.setItem('snackstack.difficulty', d); } catch (e) { /* memory only */ } }
+  const diffTiles = d => 231 + DIFFS[d].towers * DIFFS[d].extra;
+  const diffPrize = d => (DIFFS[d].chance >= 1 ? 'prize every win' : Math.round(DIFFS[d].chance * 100) + '% prize');
+  let prizeNote = '';
+
   app.innerHTML = `
     <div class="topbar">
       <span class="pill" id="lvl">Level 1</span>
@@ -85,7 +94,9 @@ const ui = (() => {
       const [x, y] = k.split(',').map(Number);
       b.style.left = x * u + 'px'; b.style.top = (BOARD_TOP + y) * u + 'px';
       const shadows = [];
-      for (let i = 0; i < Math.min(d, 6); i++) {
+      // normal piles show up to 6 edge lines; super-towers (deeper than any normal pile) show 12
+      const lines = d > generator.MAX_LAYER + 1 ? 12 : Math.min(d, 6);
+      for (let i = 0; i < lines; i++) {
         const off = u * (0.16 + i * 0.08);
         shadows.push(`0 ${off}px 0 var(--skin-edge)`, `0 ${off + 2}px 0 var(--skin-ink)`);
       }
@@ -151,10 +162,10 @@ const ui = (() => {
 
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const fmt = ms => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-  function bestText() {
-    const b = game.loadBest();
-    if (!b) return 'No runs yet. Good luck!';
-    return b.won ? 'Best: cleared it in ' + fmt(b.ms) + '!' : 'Best: Level ' + b.level + ', ' + b.left + ' tiles left';
+  function bestText(d = game.state.difficulty) {
+    const b = game.loadBest(d), name = DIFFS[d].name;
+    if (!b) return `No ${name} runs yet. Good luck!`;
+    return b.won ? `Best on ${name}: cleared it in ${fmt(b.ms)}!` : `Best on ${name}: Level ${b.level}, ${b.left} tiles left`;
   }
 
   function sparkles(el) {
@@ -184,6 +195,10 @@ const ui = (() => {
     $('overlay').innerHTML = html ? `<div class="overlay"><div class="card ${cls}">${html}</div></div>` : '';
     const go = $('go'); if (go) go.onclick = guarded(() => { sound.click(); startRun(); });
     const al = $('album'); if (al) al.onclick = guarded(() => { sound.click(); openAlbum(); });
+    document.querySelectorAll('.diff').forEach(b => {
+      b.onclick = guarded(() => { sound.click(); setDiff(b.dataset.d); startRun(); });
+    });
+    const tt = $('totitle'); if (tt) tt.onclick = guarded(() => { sound.click(); game.toTitle(); render(); showScreen(); });
   }
 
   // ---- skins ----
@@ -274,7 +289,9 @@ const ui = (() => {
     render({ board: [], hold: [], bar: [] });
     setMood('dance'); sound.win();
     await wait(900);
-    await showMystery();
+    const d = game.state.difficulty;
+    if (rollPrize(d)) await showMystery();
+    else if (col.pool().length) prizeNote = `No prize this time (${diffPrize(d)} on ${DIFFS[d].name}). Brutal always drops one!`;
     if (col.grantGoldenIfComplete()) await showGolden();
     busy = false; showScreen(); renderHud();
   }
@@ -300,22 +317,28 @@ const ui = (() => {
     const s = game.state;
     const row = [0, 1, 2, 4, 12, 13].map(i => art.SNACKS[i].svg()).join('');
     const albumBtn = `<div><button class="btn" id="album" style="margin-top:12px;background:#ffb3d1">Collection<span class="count">${col.count()} / ${REWARDS.length}</span></button></div>`;
+    const change = `<button class="btn" id="totitle" style="margin-top:12px;margin-right:6px">Change difficulty</button>`;
+    const again = label => `<button class="btn big" id="go">${label} <small style="font-size:14px">(${DIFFS[diff].name})</small></button>`;
     if (s.screen === 'title') overlay(`<h1>Snack Stack</h1><div class="row">${row}</div>
       <p>Tap a snack to drop it in the tray.<br>3 alike pop. 7 in the tray and the run is over.</p>
-      <p class="best">${bestText()}</p><button class="btn big" id="go">Play</button>${albumBtn}`);
+      <p class="best">${bestText(diff)}</p>
+      <div class="diffs">${Object.keys(DIFFS).map(k => `<button class="btn diff${k === diff ? ' on' : ''}" data-d="${k}"><b>${DIFFS[k].name}</b><small>${diffTiles(k)} tiles<br>${diffPrize(k)}</small></button>`).join('')}</div>
+      ${albumBtn}`);
     else if (s.screen === 'lost') overlay(`<h1>Run over!</h1>
       <p>You reached <b>Level ${s.level}</b> with <b>${game.tilesLeft()}</b> tiles left.</p>
-      <p class="best">${bestText()}</p><button class="btn big" id="go">Try again</button>${albumBtn}`);
+      <p class="best">${bestText()}</p>${again('Try again')}<div>${change}${albumBtn.replace('<div>', '<span>').replace('</div>', '</span>')}</div>`);
     else if (s.screen === 'won') overlay(`<h1>You did it!</h1><div class="row">${row}</div>
-      <p>Every snack cleared in <b>${fmt(s.endTime - s.startTime)}</b>.</p>
-      <p class="best">${bestText()}</p><button class="btn big" id="go">Play again</button>${albumBtn}`);
+      <p>Every snack cleared in <b>${fmt(s.endTime - s.startTime)}</b> on <b>${DIFFS[s.difficulty].name}</b>.</p>
+      ${prizeNote ? `<p class="best">${prizeNote}</p>` : ''}
+      <p class="best">${bestText()}</p>${again('Play again')}<div>${change}${albumBtn.replace('<div>', '<span>').replace('</div>', '</span>')}</div>`);
     else overlay('');
   }
 
   async function startRun() {
     tray.classList.remove('bad');
     mood = 'idle'; buddyEl.className = 'buddy idle';
-    game.start();
+    prizeNote = '';
+    game.start(diff);
     render(); showScreen();
     busy = true; renderHud();
     await banner('Level 1', 700);

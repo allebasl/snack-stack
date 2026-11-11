@@ -28,7 +28,13 @@ const rules = {
 /* ===================== generator ===================== */
 const generator = (() => {
   const BOARD_W = 18, BOARD_H = 14; // units (9 x 7 tiles)
-  const MAX_LAYER = 10;
+  const MAX_LAYER = 10; // normal towers; super-towers go past this on purpose
+  // Level 2 difficulty: super-towers added on top of the normal 201-tile pile, and the prize chance on a win.
+  const DIFFICULTIES = {
+    light: { name: 'Light', towers: 0, extra: 0, chance: 0.10 },
+    medium: { name: 'Medium', towers: 3, extra: 25, chance: 0.67 },
+    brutal: { name: 'Brutal', towers: 4, extra: 30, chance: 1 },
+  };
   const LEVELS = {
     1: { types: [0, 10, 4], total: 18, base: 15, offsetShare: 0, stackSize: 0 },
     2: { types: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], total: 201, offsetShare: 0.2, stackSize: 15 },
@@ -99,16 +105,41 @@ const generator = (() => {
     if (tiles.length !== total) throw new Error('pile does not fit: ' + tiles.length + '/' + total);
     return tiles;
   }
-  function makeLevel(levelNum, rng = Math.random, debug = false) {
+  // Super-towers: extra tiles stacked straight down on a few footprint spots (one centre spot,
+  // the rest in mirrored pairs). Each new tile goes on top of whatever is there, so layers stay valid.
+  function addSuperTowers(pile, cells, count, extra, rng) {
+    if (!count) return pile;
+    const mid = (BOARD_W - 2) / 2;
+    const centre = shuffle(cells.filter(c => c.x === mid), rng);
+    const left = shuffle(cells.filter(c => c.x < mid), rng);
+    const spots = [];
+    if (count % 2 && centre.length) spots.push(centre[0]);
+    for (const c of left) {
+      if (spots.length + 2 > count) break;
+      const m = cells.find(d => d.y === c.y && d.x === BOARD_W - 2 - c.x);
+      if (m) spots.push(c, m);
+    }
+    for (const c of shuffle(cells.slice(), rng)) { if (spots.length >= count) break; if (!spots.includes(c)) spots.push(c); }
+    for (const s of spots) for (let i = 0; i < extra; i++) {
+      let layer = 0;
+      for (const t of pile) if (rules.overlaps(t, s) && t.layer + 1 > layer) layer = t.layer + 1;
+      pile.push({ x: s.x, y: s.y, layer });
+    }
+    return pile;
+  }
+  function makeLevel(levelNum, rng = Math.random, debug = false, difficulty = 'light') {
     const cfg = levelNum === 2 && debug ? DEBUG_LEVEL2 : LEVELS[levelNum];
-    let pile = null;
+    let pile = null, cells;
     for (let attempt = 0; !pile; attempt++) {
-      let cells;
       if (levelNum === 1) cells = shuffle(parse(pickOne(SHAPES1, rng)), rng).slice(0, cfg.base);
       else if (debug) cells = parse(DEBUG_SHAPE);
       else cells = knockOut(parse(pickOne(SHAPES2, rng)), attempt < 5 ? Math.floor(rng() * 3) : 0, rng);
       try { pile = buildPile(cells, cfg.total, attempt < 10 ? cfg.offsetShare : 0, rng); }
       catch (e) { if (attempt >= 20) throw e; }
+    }
+    if (levelNum === 2 && !debug) {
+      const d = DIFFICULTIES[difficulty] || DIFFICULTIES.light;
+      addSuperTowers(pile, cells, d.towers, d.extra, rng);
     }
     const tiles = pile.map(t => ({ ...t, stack: null, stackIndex: 0 }));
     for (const side of ['L', 'R']) for (let i = 0; i < cfg.stackSize; i++) {
@@ -143,5 +174,5 @@ const generator = (() => {
       usedTypes.add(ty);
     }
   }
-  return { BOARD_W, BOARD_H, MAX_LAYER, LEVELS, typePool, makeLevel, shuffle };
+  return { BOARD_W, BOARD_H, MAX_LAYER, LEVELS, DIFFICULTIES, typePool, makeLevel, shuffle };
 })();

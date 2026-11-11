@@ -15,6 +15,12 @@ const REWARDS = [
   { id: 'skin_cookie', kind: 'skin', name: 'Cookie' },
 ];
 const GOLDEN_ID = 'golden_sheep';
+
+// Does this Level 2 win drop a prize? Chance depends on difficulty (Light 10%, Medium 67%, Brutal always).
+function rollPrize(difficulty, rng = Math.random) {
+  const d = generator.DIFFICULTIES[difficulty] || generator.DIFFICULTIES.light;
+  return rng() < d.chance;
+}
 const DEFAULT_SKIN = 'skin_classic';
 
 // storage: anything with getItem/setItem (localStorage, or a fake in tests). Never throws.

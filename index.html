@@ -87,6 +87,15 @@ body {
 .gallery .tile { position: relative; width: 110px; height: 110px; }
 .gallery .lbl { text-align: center; font-weight: bold; margin-top: 10px; }
 .btn { white-space: nowrap; }
+/* ---- difficulty picker ---- */
+.diffs { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.btn.diff { display: flex; flex-direction: column; align-items: center; min-width: 108px; padding: 8px 12px; }
+.btn.diff b { font-size: 19px; }
+.btn.diff small { font-size: 12px; font-weight: normal; line-height: 1.25; margin-top: 2px; }
+.btn.diff[data-d="light"] { background: #b8f0d0; }
+.btn.diff[data-d="medium"] { background: #ffd34d; }
+.btn.diff[data-d="brutal"] { background: #ff9b9b; }
+.btn.diff.on { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--ink), 0 4px 0 6px var(--ink); }
 /* ---- collection album ---- */
 .card.wide { max-width: min(560px, 94vw); max-height: 92dvh; overflow-y: auto; }
 .tabs { display: flex; justify-content: center; gap: 8px; margin: 6px 0 12px; }
@@ -151,13 +160,13 @@ body {
 'use strict';
 const DEBUG = /[?&]debug\b/.test(location.search);
 </script>
-<script src="js/art-snacks.js?v=4"></script>
-<script src="js/art-characters.js?v=4"></script>
-<script src="js/rewards.js?v=4"></script>
-<script src="js/rules.js?v=4"></script>
-<script src="js/game.js?v=4"></script>
-<script src="js/sound.js?v=4"></script>
-<script src="js/ui.js?v=4"></script>
-<script src="js/selftest.js?v=4"></script>
+<script src="js/art-snacks.js?v=6"></script>
+<script src="js/art-characters.js?v=6"></script>
+<script src="js/rewards.js?v=6"></script>
+<script src="js/rules.js?v=6"></script>
+<script src="js/game.js?v=6"></script>
+<script src="js/sound.js?v=6"></script>
+<script src="js/ui.js?v=6"></script>
+<script src="js/selftest.js?v=6"></script>
 </body>
 </html>

@@ -14,21 +14,30 @@ function createGame(opts = {}) {
   const now = opts.now || (() => Date.now());
   let storage = opts.storage;
   if (!storage) { try { storage = window.localStorage; } catch (e) { storage = null; } }
-  const levelFactory = opts.levelFactory || (lvl => generator.makeLevel(lvl, rng, !!opts.debug));
+  const factory = opts.levelFactory || ((lvl, d) => generator.makeLevel(lvl, rng, !!opts.debug, d));
+  const levelFactory = lvl => factory(lvl, state.difficulty);
   const listeners = [];
   const state = {
-    screen: 'title', level: 1, board: [], bar: [], hold: [],
+    screen: 'title', level: 1, difficulty: 'light', board: [], bar: [], hold: [],
     used: { pop: false, undo: false, shuffle: false }, lastMove: null, startTime: 0, endTime: 0,
   };
   const emit = () => listeners.forEach(cb => cb(state));
 
-  function loadBest() { try { return JSON.parse(storage.getItem('snackstack.best')); } catch (e) { return null; } }
+  // Best result per difficulty. The pre-difficulty best (key 'snackstack.best') was today's Light game.
+  function loadBest(d = state.difficulty) {
+    try {
+      const v = storage.getItem('snackstack.best.' + d);
+      if (v === null && d === 'light') return JSON.parse(storage.getItem('snackstack.best'));
+      return JSON.parse(v);
+    } catch (e) { return null; }
+  }
   function saveBest(result) {
-    if (isBetterResult(result, loadBest())) { try { storage.setItem('snackstack.best', JSON.stringify(result)); } catch (e) {} }
+    if (isBetterResult(result, loadBest())) { try { storage.setItem('snackstack.best.' + state.difficulty, JSON.stringify(result)); } catch (e) {} }
   }
   const tilesLeft = () => state.board.length + state.bar.length + state.hold.length;
 
-  function start() {
+  function start(difficulty = 'light') {
+    state.difficulty = generator.DIFFICULTIES[difficulty] ? difficulty : 'light';
     Object.assign(state, {
       screen: 'play', level: 1, board: levelFactory(1), bar: [], hold: [],
       used: { pop: false, undo: false, shuffle: false }, lastMove: null, startTime: now(), endTime: 0,

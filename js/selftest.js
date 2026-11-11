@@ -195,7 +195,7 @@ function mulberry32(seed) {
     const { g, storage } = mk(() => [0, 1, 2, 3, 4, 5, 6, 0, 1].map((ty, i) => T(i + 1, ty, i * 2, 0, 0)));
     let r; for (let i = 1; i <= 7; i++) r = g.click(i);
     eq(r.lost, true); eq(g.state.screen, 'lost');
-    ok(storage.getItem('snackstack.best'), 'best saved');
+    ok(storage.getItem('snackstack.best.light'), 'best saved');
     eq(g.click(8).ok, false);
   });
   test('clearing level 1 moves to level 2 keeping used helpers', () => {
@@ -384,7 +384,7 @@ function mulberry32(seed) {
   }));
   test('winNow only on level 2', () => {
     const { g, storage } = mk(); eq(g.winNow(), false); eq(g.state.screen, 'play');
-    g.skipLevel(); eq(g.winNow(), true); eq(g.state.screen, 'won'); ok(JSON.parse(storage.getItem('snackstack.best')).won);
+    g.skipLevel(); eq(g.winNow(), true); eq(g.state.screen, 'won'); ok(JSON.parse(storage.getItem('snackstack.best.light')).won);
   });
   test('mystery screen shows min(3,pool) cards', () => {
     withCol(newCol(), () => { ui.showMystery(); eq(document.querySelectorAll('.mystery .mcard').length, 3); });
@@ -416,6 +416,58 @@ function mulberry32(seed) {
         }
       } finally { g.toTitle(); ui.render(); }
     });
+  });
+  // ---- Difficulty ----
+  const depthAt = pile => { const m = {}; pile.forEach(t => { const k = t.x + ',' + t.y; m[k] = (m[k] || 0) + 1; }); return Object.values(m); };
+  test('difficulty totals: light 231, medium 306, brutal 351', () => {
+    for (let s = 0; s < 10; s++) {
+      eq(generator.makeLevel(2, mulberry32(900 + s), false, 'light').length, 231);
+      eq(generator.makeLevel(2, mulberry32(900 + s), false, 'medium').length, 306);
+      eq(generator.makeLevel(2, mulberry32(900 + s), false, 'brutal').length, 351);
+      eq(generator.makeLevel(2, mulberry32(900 + s), false).length, 231, 'default is light');
+      eq(generator.makeLevel(1, mulberry32(900 + s), false, 'brutal').length, 18, 'level 1 same for all');
+    }
+  });
+  test('super-towers: medium has 3 spots >=25 deep, brutal 4 spots >=30, light none past the cap', () => {
+    for (let s = 0; s < 20; s++) {
+      const pile = d => generator.makeLevel(2, mulberry32(950 + s), false, d).filter(t => !t.stack);
+      ok(depthAt(pile('medium')).filter(n => n >= 25).length >= 3, 'medium seed ' + s);
+      ok(depthAt(pile('brutal')).filter(n => n >= 30).length >= 4, 'brutal seed ' + s);
+      ok(Math.max(...depthAt(pile('light'))) <= generator.MAX_LAYER + 1, 'light seed ' + s);
+      for (const d of ['medium', 'brutal']) {
+        const t = generator.makeLevel(2, mulberry32(970 + s), false, d);
+        ok(Object.values(countTypes(t)).every(n => n % 3 === 0), d + ' counts %3');
+        const p = t.filter(x => !x.stack);
+        for (let i = 0; i < p.length; i++) for (let j = i + 1; j < p.length; j++)
+          if (p[i].layer === p[j].layer && rules.overlaps(p[i], p[j])) throw new Error(d + ' same-layer overlap seed ' + s);
+      }
+    }
+  });
+  test('prize roll chances: light ~10%, medium ~67%, brutal 100%', () => {
+    const rate = d => { const r = mulberry32(42); let n = 0; for (let i = 0; i < 10000; i++) if (rollPrize(d, r)) n++; return n / 10000; };
+    const l = rate('light'), m = rate('medium');
+    ok(Math.abs(l - 0.10) < 0.02, 'light ' + l); ok(Math.abs(m - 0.67) < 0.02, 'medium ' + m); eq(rate('brutal'), 1);
+  });
+  test('best is saved per difficulty; old best counts as light', () => {
+    const storage = fakeStorage(); storage.setItem('snackstack.best', JSON.stringify({ level: 2, left: 40 }));
+    const g = createGame({ levelFactory: lvl => board1(lvl * 100), storage, now: () => 1000 });
+    eq(g.loadBest('light'), { level: 2, left: 40 }); eq(g.loadBest('brutal'), null);
+    g.start('brutal'); eq(g.state.difficulty, 'brutal'); g.skipLevel(); g.winNow();
+    ok(g.loadBest('brutal').won); eq(g.loadBest('light'), { level: 2, left: 40 });
+  });
+  test('start passes difficulty to the level factory', () => {
+    const seen = []; const g = createGame({ levelFactory: (lvl, d) => { seen.push(lvl + ':' + d); return board1(lvl * 100); }, storage: fakeStorage() });
+    g.start('medium'); g.skipLevel(); eq(seen, ['1:medium', '2:medium']);
+    g.start(); eq(g.state.difficulty, 'light');
+  });
+  test('title shows 3 difficulty buttons; picking one starts that difficulty', () => {
+    const g = ui.game; g.toTitle(); ui.closeOverlay();
+    const btns = [...document.querySelectorAll('.diff')].map(b => b.dataset.d);
+    eq(btns, ['light', 'medium', 'brutal']);
+    ok(/306 tiles/.test(document.querySelector('.diff[data-d="medium"]').textContent), 'medium shows 306 tiles');
+    ui.pretendShownLongAgo(); document.querySelector('.diff[data-d="brutal"]').click();
+    try { eq(g.state.difficulty, 'brutal'); eq(g.state.screen, 'play'); }
+    finally { g.toTitle(); ui.render(); ui.closeOverlay(); }
   });
   test('best result comparison', () => {
     eq(isBetterResult({ won: true, ms: 5000 }, { won: true, ms: 6000 }), true);
