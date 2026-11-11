@@ -395,6 +395,13 @@ function mulberry32(seed) {
     ui.showMystery(); const cards = document.querySelectorAll('.mystery .mcard');
     cards[0].click(); cards[1].click(); cards[0].click(); eq(c.count(), 1);
   }));
+  test('new screen ignores a tap in its first 300ms (double-tap guard)', () => withCol(newCol(), () => {
+    ui.showGolden(); const before = ui.tapsAccepted();
+    document.getElementById('gcont').click();
+    eq(ui.tapsAccepted(), before, 'tap right after showing must be ignored');
+    ui.pretendShownLongAgo(); document.getElementById('gcont').click();
+    eq(ui.tapsAccepted(), before + 1, 'later tap accepted');
+  }));
   test('buddy does not overlap tiles', () => {
     const c = newCol(); c.claim('bear_wizard');
     withCol(c, () => {

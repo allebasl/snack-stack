@@ -175,10 +175,15 @@ const ui = (() => {
     await wait(ms); b.classList.remove('show');
   }
 
+  // A new screen ignores taps for its first 300ms, so a fast double-tap on one screen's button
+  // can't also press the next screen's button (e.g. skipping the golden sheep reveal).
+  let shownAt = 0, tapsAccepted = 0;
+  const guarded = fn => () => { if (performance.now() - shownAt < 300) return; tapsAccepted++; fn(); };
   function overlay(html, cls = '') {
+    shownAt = performance.now();
     $('overlay').innerHTML = html ? `<div class="overlay"><div class="card ${cls}">${html}</div></div>` : '';
-    const go = $('go'); if (go) go.onclick = () => { sound.click(); startRun(); };
-    const al = $('album'); if (al) al.onclick = () => { sound.click(); openAlbum(); };
+    const go = $('go'); if (go) go.onclick = guarded(() => { sound.click(); startRun(); });
+    const al = $('album'); if (al) al.onclick = guarded(() => { sound.click(); openAlbum(); });
   }
 
   // ---- skins ----
@@ -227,7 +232,7 @@ const ui = (() => {
         sound.click(); openAlbum();
       };
     });
-    $('album-close').onclick = () => { sound.click(); showScreen(); };
+    $('album-close').onclick = guarded(() => { sound.click(); showScreen(); });
   }
 
   // ---- mystery cards after a Level 2 win ----
@@ -250,7 +255,7 @@ const ui = (() => {
           setTimeout(() => {
             document.querySelectorAll('.mystery .mcard:not(.picked)').forEach(o => o.classList.add('flipped', 'other'));
             const n = $('mnote'); if (n) n.textContent = cards.length > 1 ? 'You got ' + rewardName(c.dataset.id) + '! The others go back in the pool.' : 'You got ' + rewardName(c.dataset.id) + '!';
-            const b = $('mcont'); if (b) { b.style.visibility = 'visible'; b.onclick = () => { sound.click(); resolve(); }; }
+            const b = $('mcont'); if (b) { b.style.visibility = 'visible'; b.onclick = guarded(() => { sound.click(); resolve(); }); }
           }, 650);
         };
       });
@@ -261,7 +266,7 @@ const ui = (() => {
       overlay(`<h1 style="font-size:32px">Collection complete!</h1><div class="reveal">${charArt.CHARACTERS[GOLDEN_ID].svg()}</div>
         <p>You found everything, so the <b>Golden sheep</b> joins you!</p><button class="btn big" id="gcont">Continue</button>`);
       sound.win();
-      $('gcont').onclick = () => { sound.click(); resolve(); };
+      $('gcont').onclick = guarded(() => { sound.click(); resolve(); });
     });
   }
   async function afterWin() {
@@ -397,7 +402,9 @@ const ui = (() => {
     document.body.appendChild(g);
   }
   return {
-    game, render, openAlbum, showMystery, applySkin,
+    game, render, openAlbum, showMystery, showGolden, applySkin,
+    tapsAccepted: () => tapsAccepted,
+    pretendShownLongAgo() { shownAt = -1e9; },
     collection: () => col,
     // tests swap in a throwaway collection; returns the previous one so it can be restored
     useCollection(c) { const prev = col; col = c; applySkin(col.skin()); buddyEl.dataset.id = ''; renderBuddy(); return prev; },
