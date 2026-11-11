@@ -294,16 +294,16 @@ const ui = (() => {
   function showScreen() {
     const s = game.state;
     const row = [0, 1, 2, 4, 12, 13].map(i => art.SNACKS[i].svg()).join('');
+    const albumBtn = `<div><button class="btn" id="album" style="margin-top:12px;background:#ffb3d1">Collection<span class="count">${col.count()} / ${REWARDS.length}</span></button></div>`;
     if (s.screen === 'title') overlay(`<h1>Snack Stack</h1><div class="row">${row}</div>
       <p>Tap a snack to drop it in the tray.<br>3 alike pop. 7 in the tray and the run is over.</p>
-      <p class="best">${bestText()}</p><button class="btn big" id="go">Play</button>
-      <div><button class="btn" id="album" style="margin-top:12px;background:#ffb3d1">Collection<span class="count">${col.count()} / ${REWARDS.length}</span></button></div>`);
+      <p class="best">${bestText()}</p><button class="btn big" id="go">Play</button>${albumBtn}`);
     else if (s.screen === 'lost') overlay(`<h1>Run over!</h1>
       <p>You reached <b>Level ${s.level}</b> with <b>${game.tilesLeft()}</b> tiles left.</p>
-      <p class="best">${bestText()}</p><button class="btn big" id="go">Try again</button>`);
+      <p class="best">${bestText()}</p><button class="btn big" id="go">Try again</button>${albumBtn}`);
     else if (s.screen === 'won') overlay(`<h1>You did it!</h1><div class="row">${row}</div>
       <p>Every snack cleared in <b>${fmt(s.endTime - s.startTime)}</b>.</p>
-      <p class="best">${bestText()}</p><button class="btn big" id="go">Play again</button>`);
+      <p class="best">${bestText()}</p><button class="btn big" id="go">Play again</button>${albumBtn}`);
     else overlay('');
   }
 
